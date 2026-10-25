@@ -11,6 +11,10 @@
     {
       "source": "/sign-in",
       "destination": "/login.html"
+    },
+    {
+      "source": "/profile",
+      "destination": "/profile.html"
     }
   ]
 }
