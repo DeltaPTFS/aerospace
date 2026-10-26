@@ -15,6 +15,14 @@
     {
       "source": "/profile",
       "destination": "/profile.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "https://aeroscope-legal-pages.vercel.app/privacy"
+    },
+    {
+      "source": "/terms",
+      "destination": "https://aeroscope-legal-pages.vercel.app/terms"
     }
   ]
 }
