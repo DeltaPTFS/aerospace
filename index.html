@@ -99,7 +99,7 @@ async function loadLicensedFlightStatus(a,hex){
  try{
   const url='/api/aerodatabox-status?hex='+encodeURIComponent(hexId)+'&callsign='+encodeURIComponent(callsign)+'&registration='+encodeURIComponent(registration);
   const r=await fetch(url,{cache:'no-store'});
-  const d=await r.json(),grid=panel.querySelector('.schedule-box .detail-grid'),note=panel.querySelector('#route-note');
+  const raw=await r.text();let d;try{d=JSON.parse(raw)}catch{d={available:false,reason:'Flight-status server returned a non-JSON response (HTTP '+r.status+').'+(raw.includes('FUNCTION_INVOCATION_FAILED')?' Server function failed.':'')}}const grid=panel.querySelector('.schedule-box .detail-grid'),note=panel.querySelector('#route-note');
   if(activeHex!==hex||!grid||!grid.isConnected||!note)return;
   if(!r.ok||!d.available){if(hint)hint.textContent=(d.reason||'No verified current flight record returned.')+(d.providerMessage?' '+d.providerMessage:'');button.disabled=false;return;}
   const airport=v=>v?.code?((v.code||'')+(v.name?' — '+v.name:'')):'Not available';
@@ -123,7 +123,7 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
   note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
- }catch{const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Lookup unavailable; please try again later.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
+ }catch(err){const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Flight-status lookup failed: '+(err?.message||'Network or browser error')+'.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
 const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
