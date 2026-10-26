@@ -12,8 +12,8 @@ export default async function handler(req,res){
    const response=await fetch(feed.url,{signal:ctrl.signal,headers:{Accept:'application/json','User-Agent':'AeroScopeONE/0.4 (aeroscope-one.vercel.app; contact aeroscopefly@gmail.com)'}});
    if(!response.ok)throw Error('HTTP '+response.status);
    const data=await response.json();if(!Array.isArray(data.ac))throw Error('Missing aircraft list');
-   res.setHeader('Cache-Control','public, s-maxage=20, stale-while-revalidate=40');
-   return res.status(200).json({ac:data.ac,source:feed.name,now:data.now||Date.now(),total:data.total??data.ac.length});
+   res.setHeader('Cache-Control','public, s-maxage=8, stale-while-revalidate=8');
+   return res.status(200).json({ac:data.ac,source:feed.name,now:data.now||Date.now(),total:data.total??data.ac.length,servedAt:new Date().toISOString()});
   }catch(e){last=feed.name+' '+(e.name==='AbortError'?'timed out':e.message)}
   finally{clearTimeout(timeout)}
  }
