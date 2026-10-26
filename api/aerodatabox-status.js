@@ -22,9 +22,9 @@ export default async function handler(req,res){
  attempted++;
  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),7500);
  try{
-  const url='https://aerodatabox.p.rapidapi.com/flights/icao24/'+encodeURIComponent(hex)+'?withLocation=false&withAircraftImage=false';
+  // The successful RapidAPI Playground test uses /flights/callsign/SWA4086.\n  // Prefer that documented search when a flight callsign exists.\n  const useCallsign=/^[A-Z]{2,4}[0-9]{1,5}[A-Z]?$/.test(callsign);\n  const url='https://aerodatabox.p.rapidapi.com/flights/'+(useCallsign?'callsign/'+encodeURIComponent(callsign):'icao24/'+encodeURIComponent(hex))+'?withAircraftImage=false&withLocation=false&withFlightPlan=false';
   const response=await fetch(url,{signal:ctrl.signal,headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'aerodatabox.p.rapidapi.com','Accept':'application/json'}});
-  if(response.status===429)return res.status(429).json({available:false,reason:'AeroDataBox usage limit reached'});
+  if(response.status===204)return res.status(200).json({available:false,reason:'AeroDataBox has no flight-status record for this search (204 No Content)'});\n  if(response.status===429)return res.status(429).json({available:false,reason:'AeroDataBox usage limit reached'});
   if(!response.ok){let detail='';try{const body=await response.text();detail=body.slice(0,500)}catch{};const code=response.status;const message=code===451?'AeroDataBox / RapidAPI rejected this request with HTTP 451 (Unavailable For Legal Reasons). The provider must clarify the restriction; this is not a missing-flight result.':code===403?'AeroDataBox denied this API request (403). Check that the RapidAPI subscription is active for this exact key and that the selected Flight Status endpoint is included in the plan.':code===401?'API key not accepted (401). Recheck your RapidAPI key and redeploy.':code===404?'No matching flight data from this endpoint (404).':`AeroDataBox returned HTTP ${code}.`;return res.status(code===403?403:code===451?451:502).json({available:false,reason:message,providerStatus:code,providerMessage:/invalid|subscription|forbidden|quota|unauthoriz|not subscribed|endpoint/i.test(detail)?detail.slice(0,180):null})}
   const flights=await response.json();const all=Array.isArray(flights)?flights:[];
   const now=Date.now();
@@ -35,7 +35,7 @@ export default async function handler(req,res){
    if(fhex&&fhex!==hex)return false;
    if(reg&&freg&&freg!==reg)return false;
    if(callsign&&fcall&&fcall!==callsign)return false;
-   if(!(fhex===hex||(reg&&freg===reg)))return false;
+   if(!(fhex===hex||(reg&&freg===reg)))return false; // Never associate a callsign-only response with an unverified aircraft.
    const times=[f.departure?.revisedTime?.utc,f.departure?.scheduledTime?.utc,f.arrival?.revisedTime?.utc,f.arrival?.scheduledTime?.utc].map(x=>Date.parse(x)).filter(Number.isFinite);
    return times.some(t=>t>now-36*3600000&&t<now+18*3600000);
   });
