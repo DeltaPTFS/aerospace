@@ -71,9 +71,9 @@ function details(a){
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
- +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available')
- +'</div><p class="data-disclaimer" id="route-note">Route and schedule are hidden until verified against a flight-specific source. Callsigns can be reused on different dates and aircraft.</p></section>'
- +'<p class="schedule-links"><a href="https://www.flightaware.com/live/flight/'+encodeURIComponent(call)+'" target="_blank" rel="noopener noreferrer">Check flight-specific status at FlightAware ↗</a></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
+ +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available')+info('Actual arrival','Not available')+info('Departure gate','Not available')+info('Arrival gate','Not available')+info('Departure delay','Not available')+info('Arrival delay','Not available')+info('Flight status','Not available')
+ +'</div><p class="data-disclaimer" id="route-note">Flight status, routes, gates and schedules require licensed flight-instance records. Values are displayed only when verified against the correct date and aircraft. Live position data is separate.</p></section>'
+ +'<p class="schedule-links"><a href="https://www.flightaware.com/live/flight/'+encodeURIComponent(call)+'" target="_blank" rel="noopener noreferrer">View dated flight status and gates at FlightAware ↗</a></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
  +info('Airline (inferred from callsign)',airlineFor(a)||'Not identified')+info('Callsign',a.flight?.trim())+info('Registration',a.r)+info('Aircraft type',a.t)+info('Description',a.desc)+info('ICAO hex',a.hex)
  +info('Barometric altitude',alt,typeof alt==='number'?' ft':'')+info('Geometric altitude',a.alt_geom,' ft')+info('Ground speed',a.gs,' kt')+info('Heading',a.track,'°')
  +info('Vertical speed',a.baro_rate,' ft/min')+info('Squawk',a.squawk)+info('Emergency',a.emergency)
