@@ -22,6 +22,7 @@ function commonsSearch(query,limit=12){
  return 'https://commons.wikimedia.org/w/api.php?'+opts;
 }
 function normalized(v){return String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,' ')}
+function plain(v){return String(v||'').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/\s+/g,' ').trim().slice(0,100)}
 function isRaster(p){return /\.(?:jpe?g|png|webp)$/i.test(p.imageinfo?.[0]?.url?.split('?')[0]||'')}
 function matchesType(title,type,model){
  const t=normalized(title),code=type.toLowerCase();const family=model.toLowerCase();
@@ -49,7 +50,7 @@ async function commonsPhoto(airline,type,model){
    });
    if(!candidate)continue;
    const img=candidate.imageinfo[0];
-   return {url:img.thumburl,page:img.descriptionurl,credit:'Wikimedia Commons • '+(img.extmetadata?.LicenseShortName?.value||'see image license'),kind:plan.needAirline?'same-airline-model':'type-only',model,airline:plan.needAirline?airline:''};
+   return {url:img.thumburl,page:img.descriptionurl,credit:(plain(img.extmetadata?.Artist?.value)||'Photographer not listed')+' • Wikimedia Commons • '+plain(img.extmetadata?.LicenseShortName?.value||'see image license'),kind:plan.needAirline?'same-airline-model':'type-only',model,airline:plan.needAirline?airline:''};
   }catch{}
  }
  return null;
@@ -64,7 +65,7 @@ export default async function handler(req,res){
    const qs=new URLSearchParams();if(reg)qs.set('reg',reg);if(type)qs.set('icaoType',type);
    const p=await fetchJson('https://api.planespotters.net/pub/photos/hex/'+hex+'?'+qs,3600);
    const photo=p?.photos?.find(x=>safeHttp(x?.thumbnail_large?.src)||safeHttp(x?.thumbnail?.src));
-   if(photo)result={url:safeHttp(photo.thumbnail_large?.src)||safeHttp(photo.thumbnail?.src),page:safeHttp(photo.link)||'https://www.planespotters.net/',credit:'© '+(photo.photographer||'photographer')+' / Planespotters.net',kind:'registration',model,airline};
+   if(photo)result={url:safeHttp(photo.thumbnail_large?.src)||safeHttp(photo.thumbnail?.src),page:safeHttp(photo.link)||(String(photo.link||'').startsWith('/')?'https://www.planespotters.net'+photo.link:'https://www.planespotters.net/'),credit:'© '+(photo.photographer||'photographer')+' / Planespotters.net',kind:'registration',model,airline};
   }catch{}
  }
  if(!result)result=await commonsPhoto(airline,type,model);
