@@ -74,7 +74,7 @@ function details(a){
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
  +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available')+info('Actual arrival','Not available')+info('Departure gate','Not available')+info('Arrival gate','Not available')+info('Departure delay','Not available')+info('Arrival delay','Not available')+info('Flight status','Not available')
  +'</div><p class="data-disclaimer" id="route-note">Flight status, routes, gates and schedules require licensed flight-instance records. Values are displayed only when verified against the correct date and aircraft. Live position data is separate.</p></section>'
- +'<p class="schedule-links"><a href="https://www.flightaware.com/live/flight/'+encodeURIComponent(call)+'" target="_blank" rel="noopener noreferrer">View dated flight status and gates at FlightAware ↗</a></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
+ +'<p class="schedule-links"><button type="button" id="lookup-flight-status">Check verified flight status (AeroDataBox)</button><span id="lookup-status-hint" style="display:block;font-size:12px;color:#b8d6e9;margin-top:6px">On-demand lookup: free API calls are limited.</span></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
  +info('Airline (inferred from callsign)',airlineFor(a)||'Not identified')+info('Callsign',a.flight?.trim())+info('Registration',a.r)+info('Aircraft type',a.t)+info('Description',a.desc)+info('ICAO hex',a.hex)
  +info('Barometric altitude',alt,typeof alt==='number'?' ft':'')+info('Geometric altitude',a.alt_geom,' ft')+info('Ground speed',a.gs,' kt')+info('Heading',a.track,'°')
  +info('Vertical speed',a.baro_rate,' ft/min')+info('Squawk',a.squawk)+info('Emergency',a.emergency)
@@ -89,16 +89,19 @@ function details(a){
  if(btn)btn.onclick=()=>{const code=(document.getElementById('atc-airport').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length<3){document.getElementById('atc-airport').focus();return}window.open('https://www.liveatc.net/search/?icao='+encodeURIComponent(code),'_blank','noopener,noreferrer')};
  panel.querySelector('#follow-plane').onclick=()=>{followSelected=!followSelected;panel.querySelector('#follow-plane').textContent=followSelected?'● Following aircraft':'○ Follow aircraft';if(followSelected&&typeof a.lon==='number')map.easeTo({center:[a.lon,a.lat],duration:500})};
  panel.querySelector('#close-plane').onclick=closeSelection;
- loadPhoto(a,hex);loadLicensedFlightStatus(a,hex);
+ loadPhoto(a,hex);const lookup=panel.querySelector('#lookup-flight-status');if(lookup)lookup.onclick=()=>loadLicensedFlightStatus(a,hex);
 }
 async function loadLicensedFlightStatus(a,hex){
- const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim();
- if(!callsign||!registration)return;
+ const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim(),hexId=String(a.hex||'').trim();
+ const hint=panel.querySelector('#lookup-status-hint'),button=panel.querySelector('#lookup-flight-status');
+ if(!hexId||!button)return;
+ button.disabled=true;if(hint)hint.textContent='Checking the provider for this aircraft…';
  try{
-  const url='/api/verified-flight-status?ident='+encodeURIComponent(callsign)+'&registration='+encodeURIComponent(registration);
-  const r=await fetch(url,{cache:'default'});if(!r.ok)return;
+  const url='/api/aerodatabox-status?hex='+encodeURIComponent(hexId)+'&callsign='+encodeURIComponent(callsign)+'&registration='+encodeURIComponent(registration);
+  const r=await fetch(url,{cache:'no-store'});
   const d=await r.json(),grid=panel.querySelector('.schedule-box .detail-grid'),note=panel.querySelector('#route-note');
-  if(!d.available||activeHex!==hex||!grid||!grid.isConnected||!note)return;
+  if(activeHex!==hex||!grid||!grid.isConnected||!note)return;
+  if(!r.ok||!d.available){if(hint)hint.textContent=d.reason||'No verified current flight record returned.';button.disabled=false;return;}
   const airport=v=>v?.code?((v.code||'')+(v.name?' — '+v.name:'')):'Not available';
   const fmt=(v,tz)=>{
    if(!v)return 'Not available';
@@ -119,8 +122,8 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
-  note.textContent='Matched callsign and registration to a current dated flight record. Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Times and gates may change; not an ATC clearance or flight plan.';
- }catch{}
+  note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
+ }catch{const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Lookup unavailable; please try again later.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
 const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
