@@ -69,12 +69,12 @@ function details(a){
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
  +'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
- +info('Departure airport','Looking up route…')+info('Arrival airport','Looking up route…')
+ +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
  +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available')
- +'</div><p class="data-disclaimer" id="route-note">Checking route records. Times require a separate licensed schedule/status data provider and are not contained in ADS-B broadcasts.</p></section>'
+ +'</div><p class="data-disclaimer" id="route-note">Route and schedule are hidden until verified against a flight-specific source. Callsigns can be reused on different dates and aircraft.</p></section>'
  +'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
- +info('Airline (callsign estimate)',airlineFor(a)||'Not identified')+info('Callsign',a.flight?.trim())+info('Registration',a.r)+info('Aircraft type',a.t)+info('Description',a.desc)+info('ICAO hex',a.hex)
+ +info('Airline (inferred from callsign)',airlineFor(a)||'Not identified')+info('Callsign',a.flight?.trim())+info('Registration',a.r)+info('Aircraft type',a.t)+info('Description',a.desc)+info('ICAO hex',a.hex)
  +info('Barometric altitude',alt,typeof alt==='number'?' ft':'')+info('Geometric altitude',a.alt_geom,' ft')+info('Ground speed',a.gs,' kt')+info('Heading',a.track,'°')
  +info('Vertical speed',a.baro_rate,' ft/min')+info('Squawk',a.squawk)+info('Emergency',a.emergency)
  +info('Latitude',a.lat?.toFixed(5))+info('Longitude',a.lon?.toFixed(5))+info('Position age',a.seen_pos,' seconds')+info('Position source',a.type)+info('Aircraft category',a.category)
@@ -88,27 +88,7 @@ function details(a){
  if(btn)btn.onclick=()=>{const code=(document.getElementById('atc-airport').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length<3){document.getElementById('atc-airport').focus();return}window.open('https://www.liveatc.net/search/?icao='+encodeURIComponent(code),'_blank','noopener,noreferrer')};
  panel.querySelector('#follow-plane').onclick=()=>{followSelected=!followSelected;panel.querySelector('#follow-plane').textContent=followSelected?'● Following aircraft':'○ Follow aircraft';if(followSelected&&typeof a.lon==='number')map.easeTo({center:[a.lon,a.lat],duration:500})};
  panel.querySelector('#close-plane').onclick=closeSelection;
- loadPhoto(a,hex);loadRoute(a,hex);
-}
-async function loadRoute(a,hex){
- const callsign=(a.flight||'').trim();
- const box=panel.querySelector('.schedule-box .detail-grid'),note=panel.querySelector('#route-note');
- if(!box||!note)return;
- const mark=v=>v?.name?((v.iata||v.icao||'')+' — '+v.name):'Not available';
- try{
-  if(!callsign)throw Error('No flight callsign broadcast');
-  const r=await fetch('/api/flight-route?callsign='+encodeURIComponent(callsign));
-  const d=await r.json();if(activeHex!==hex||!box.isConnected)return;
-  box.innerHTML=info('Departure airport',d.available?mark(d.origin):'Not available')
-  +info('Arrival airport',d.available?mark(d.destination):'Not available')
-  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
-  +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available');
-  note.textContent=d.available?'Route database match, not a confirmed flight plan. Airport assignment may change or be reused. Schedule and arrival/departure times are not supplied by this source.':(d.reason||'No route matched')+'. Not every aircraft has a published scheduled route, especially private and general-aviation flights.';
- }catch{
-  if(activeHex!==hex||!box.isConnected)return;
-  box.innerHTML=info('Departure airport','Not available')+info('Arrival airport','Not available')+info('Scheduled departure','Not available')+info('Actual departure','Not available')+info('Scheduled arrival','Not available')+info('Estimated arrival','Not available');
-  note.textContent='No verified route data for this aircraft. Schedule/status times require a separate licensed data source.';
- }
+ loadPhoto(a,hex);
 }
 const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
