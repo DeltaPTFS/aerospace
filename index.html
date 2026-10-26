@@ -89,7 +89,38 @@ function details(a){
  if(btn)btn.onclick=()=>{const code=(document.getElementById('atc-airport').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length<3){document.getElementById('atc-airport').focus();return}window.open('https://www.liveatc.net/search/?icao='+encodeURIComponent(code),'_blank','noopener,noreferrer')};
  panel.querySelector('#follow-plane').onclick=()=>{followSelected=!followSelected;panel.querySelector('#follow-plane').textContent=followSelected?'● Following aircraft':'○ Follow aircraft';if(followSelected&&typeof a.lon==='number')map.easeTo({center:[a.lon,a.lat],duration:500})};
  panel.querySelector('#close-plane').onclick=closeSelection;
- loadPhoto(a,hex);
+ loadPhoto(a,hex);loadLicensedFlightStatus(a,hex);
+}
+async function loadLicensedFlightStatus(a,hex){
+ const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim();
+ if(!callsign||!registration)return;
+ try{
+  const url='/api/verified-flight-status?ident='+encodeURIComponent(callsign)+'&registration='+encodeURIComponent(registration);
+  const r=await fetch(url,{cache:'default'});if(!r.ok)return;
+  const d=await r.json(),grid=panel.querySelector('.schedule-box .detail-grid'),note=panel.querySelector('#route-note');
+  if(!d.available||activeHex!==hex||!grid||!grid.isConnected||!note)return;
+  const airport=v=>v?.code?((v.code||'')+(v.name?' — '+v.name:'')):'Not available';
+  const fmt=(v,tz)=>{
+   if(!v)return 'Not available';
+   const parsed=new Date(v);if(Number.isNaN(parsed.getTime()))return 'Not available';
+   try{return new Intl.DateTimeFormat('en-US',{timeZone:tz||'UTC',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(parsed)}
+   catch{return parsed.toISOString()}
+  };
+  const gate=g=>g||'Not reported';
+  const delay=(scheduled,actual)=>{
+   if(!scheduled||!actual)return 'Not reported';
+   const delta=Math.round((Date.parse(actual)-Date.parse(scheduled))/60000);
+   if(!Number.isFinite(delta))return 'Not reported';
+   return delta<=0?'On time / early':delta+' min late';
+  };
+  grid.innerHTML=info('Departure airport',airport(d.origin))+info('Arrival airport',airport(d.destination))
+  +info('Scheduled departure',fmt(d.scheduledDeparture,d.origin?.timeZone))+info('Actual departure',fmt(d.actualDeparture,d.origin?.timeZone))
+  +info('Scheduled arrival',fmt(d.scheduledArrival,d.destination?.timeZone))+info('Estimated arrival',fmt(d.estimatedArrival,d.destination?.timeZone))
+  +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
+  +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
+  +info('Flight status',d.status||'Not reported');
+  note.textContent='Matched callsign and registration to a current dated flight record. Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Times and gates may change; not an ATC clearance or flight plan.';
+ }catch{}
 }
 const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
