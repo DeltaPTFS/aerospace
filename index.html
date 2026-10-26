@@ -62,6 +62,17 @@ async function loadPhoto(a,hex){
   box.replaceChildren(img,caption,credit);
  }catch{box.textContent='The photo directory is temporarily unavailable.'}
 }
+// Keep automatic status checks modest: AeroDataBox Basic has a small monthly quota.
+const autoFlightLookupSeen=new Set();let autoFlightLookupCount=0;let autoFlightLookupTimer=null;
+function autoFlightStatus(a,hex){
+ clearTimeout(autoFlightLookupTimer);
+ const call=String(a?.flight||'').trim().toUpperCase();
+ if(!/^[A-Z]{2,4}[0-9]{1,5}[A-Z]?$/.test(call)||!a?.hex)return;
+ const id=String(a.hex).toLowerCase()+'|'+call;
+ if(autoFlightLookupSeen.has(id)||autoFlightLookupCount>=8)return;
+ autoFlightLookupSeen.add(id);autoFlightLookupCount++;
+ autoFlightLookupTimer=setTimeout(()=>{if(activeHex===hex)loadLicensedFlightStatus(a,hex)},650);
+}
 function details(a){
  if(!a)return;const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;
  document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});setTimeout(()=>map.resize(),80);
@@ -74,7 +85,7 @@ function details(a){
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
  +info('Scheduled arrival','Not available')+info('Estimated arrival','Not available')+info('Actual arrival','Not available')+info('Departure gate','Not available')+info('Arrival gate','Not available')+info('Departure delay','Not available')+info('Arrival delay','Not available')+info('Flight status','Not available')
  +'</div><p class="data-disclaimer" id="route-note">Flight status, routes, gates and schedules require licensed flight-instance records. Values are displayed only when verified against the correct date and aircraft. Live position data is separate.</p></section>'
- +'<p class="schedule-links"><button type="button" id="lookup-flight-status">Check verified flight status (AeroDataBox)</button><span id="lookup-status-hint" style="display:block;font-size:12px;color:#b8d6e9;margin-top:6px">On-demand lookup: free API calls are limited.</span></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
+ +'<p class="schedule-links"><button type="button" id="lookup-flight-status">Check verified flight status (AeroDataBox)</button><span id="lookup-status-hint" style="display:block;font-size:12px;color:#b8d6e9;margin-top:6px">Automatically checks selected commercial flights when quota allows. Manual retry available.</span></p>'+'<h3 style="margin:18px 0 9px">Aircraft & live position</h3><div class="detail-grid">'
  +info('Airline (inferred from callsign)',airlineFor(a)||'Not identified')+info('Callsign',a.flight?.trim())+info('Registration',a.r)+info('Aircraft type',a.t)+info('Description',a.desc)+info('ICAO hex',a.hex)
  +info('Barometric altitude',alt,typeof alt==='number'?' ft':'')+info('Geometric altitude',a.alt_geom,' ft')+info('Ground speed',a.gs,' kt')+info('Heading',a.track,'°')
  +info('Vertical speed',a.baro_rate,' ft/min')+info('Squawk',a.squawk)+info('Emergency',a.emergency)
@@ -90,6 +101,7 @@ function details(a){
  panel.querySelector('#follow-plane').onclick=()=>{followSelected=!followSelected;panel.querySelector('#follow-plane').textContent=followSelected?'● Following aircraft':'○ Follow aircraft';if(followSelected&&typeof a.lon==='number')map.easeTo({center:[a.lon,a.lat],duration:500})};
  panel.querySelector('#close-plane').onclick=closeSelection;
  loadPhoto(a,hex);const lookup=panel.querySelector('#lookup-flight-status');if(lookup)lookup.onclick=()=>loadLicensedFlightStatus(a,hex);
+ autoFlightStatus(a,hex);
 }
 async function loadLicensedFlightStatus(a,hex){
  const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim(),hexId=String(a.hex||'').trim();
