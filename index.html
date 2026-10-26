@@ -63,7 +63,7 @@ async function loadPhoto(a,hex){
 }
 function details(a){
  if(!a)return;const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;
- document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});
+ document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});setTimeout(()=>map.resize(),80);
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
@@ -101,7 +101,7 @@ function animateMarker(item,to){
  if(item.animation)cancelAnimationFrame(item.animation);
  if(Math.abs(target[0]-initial[0])>1||Math.abs(target[1]-initial[1])>1){item.marker.setLngLat(target);return}
  const began=performance.now(),duration=17000;
- function frame(now){if(!document.contains(item.el))return;const t=Math.min((now-began)/duration,1);item.marker.setLngLat(positionBetween(initial,target,t));if(followSelected&&activeHex&&item.aircraft.hex===activeHex&&t<1){map.setCenter(item.marker.getLngLat())}if(t<1)item.animation=requestAnimationFrame(frame)}
+ function frame(now){if(!document.contains(item.el))return;const t=Math.min((now-began)/duration,1);item.marker.setLngLat(positionBetween(initial,target,t));if(t<1)item.animation=requestAnimationFrame(frame)}
  item.animation=requestAnimationFrame(frame);
 }
 function render(){
@@ -119,7 +119,7 @@ function render(){
   }else{item.aircraft=a;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
  }
  for(const [id,item] of markers){if(!seen.has(id)){if(item.animation)cancelAnimationFrame(item.animation);item.marker.remove();markers.delete(id)}}
- if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&typeof current.lon==='number')map.easeTo({center:[current.lon,current.lat],duration:900});else if(!current){followSelected=false}}highlightSelected();
+ if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&typeof current.lon==='number')map.easeTo({center:[current.lon,current.lat],duration:17000,essential:true});else if(!current){followSelected=false}}highlightSelected();
  status.textContent='Nearby reported aircraft: '+count+' / '+aircraft.length+' • Positions update about every 30 seconds';
 }
 async function load(){
