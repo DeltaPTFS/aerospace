@@ -530,7 +530,7 @@ function render(){
 async function load(force=false){
  if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
  const c=map.getCenter();status.textContent='Updating aircraft positions…';
- try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(1)+'&lon='+c.lng.toFixed(1),{cache:'no-store'}); // coarse region, not precise visitor coordinatesconst data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();rememberAircraftPositions(aircraft);render();if(search.value.trim())results()}
+ try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(1)+'&lon='+c.lng.toFixed(1),{cache:'no-store'}); /* Coarse region only; do not transmit precise location coordinates. */ const data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();rememberAircraftPositions(aircraft);render();if(search.value.trim())results()}
  catch(e){status.textContent='Live tracking temporarily unavailable: '+e.message+' • Existing positions may be old'}
  finally{refreshing=false}
 }
