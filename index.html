@@ -38,6 +38,27 @@ const airportsByCode=new Map(airportList.map(a=>[a[0],a]));
 // Aircraft observations are collected on every feed refresh, even when no plane is selected.
 // Restore recently observed positions from this browser; no pre-visit flight history is claimed.
 const recentTracks=new Map(),trackCallsigns=new Map();let verifiedOrigin=null,lastTrackSave=0;
+const historicalTrails=new Map(),historicalLookups=new Set();
+let historicalLookupCount=0; // Each aircraft history is fetched at most once per page session.
+async function loadHistoricalFlightTrail(a,hex){
+ const id=String(hex||'').toLowerCase();
+ if(!/^[0-9a-f]{6}$/.test(id)||historicalLookups.has(id)||historicalLookupCount>=12)return;
+ historicalLookups.add(id);historicalLookupCount++;
+ try{
+  const url='/api/flight-trail-history?hex='+encodeURIComponent(id)+'&callsign='+encodeURIComponent(String(a?.flight||'').trim());
+  const res=await fetch(url,{cache:'no-store'});
+  if(!res.ok)return;
+  const data=await res.json();
+  if(!data.available||!Array.isArray(data.points))return;
+  const points=data.points.filter(p=>Array.isArray(p)&&p.length===3&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&Number.isFinite(p[2]));
+  if(points.length<2)return;
+  historicalTrails.set(id,{points,attribution:data.attribution,pointCount:data.pointCount});
+  if(activeHex===id){drawRadarOverlays();const hint=panel.querySelector('#trail-status');
+   if(hint)hint.textContent='Historical path: '+data.pointCount+' reported positions • '+data.attribution;
+  }
+ }catch{/* Keep locally collected tracks as the reliable fallback. */}
+}
+
 try{
  const stored=JSON.parse(localStorage.getItem('aeroscope-observed-trails-v1')||'[]');
  if(Array.isArray(stored)){for(const entry of stored.slice(0,240)){
@@ -112,6 +133,11 @@ function drawRadarOverlays(){
   }
  }
  // Selecting a flight instantly displays its trail from first observation, not first click.
+ const savedHistory=historicalTrails.get(String(activeHex||'').toLowerCase());
+ if(savedHistory){
+  // Real recorded positions, not a flight-plan approximation. Break the trail at receiver gaps.
+  for(const part of recordedSegments(savedHistory.points))features.push({type:'Feature',properties:{kind:'history'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
+ }
  for(const part of recordedSegments(points))features.push({type:'Feature',properties:{kind:'observed'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
  const origin=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.code):null;
  const destination=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.destination):null;
@@ -124,6 +150,7 @@ function drawRadarOverlays(){
   map.addLayer({id:'aeroscope-origin-reference',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'reference'],paint:{'line-color':'#f6d875','line-width':2,'line-opacity':0.85,'line-dasharray':[2,3]}});
   map.addLayer({id:'aeroscope-destination',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'destination'],paint:{'line-color':'#f4a64f','line-width':2.5,'line-opacity':.85,'line-dasharray':[2,2]}});
   map.addLayer({id:'aeroscope-background-trails',type:'line',source:'aeroscope-traces',minzoom:6,filter:['==',['get','kind'],'background'],paint:{'line-color':'#6ad6ff','line-width':1.5,'line-opacity':0.55}});
+  map.addLayer({id:'aeroscope-history-track',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'history'],paint:{'line-color':'#ed45c6','line-width':3.5,'line-opacity':0.95}});
   map.addLayer({id:'aeroscope-observed-track',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'observed'],paint:{'line-color':'#44e1f7','line-width':3,'line-opacity':0.95}});
  }else map.getSource('aeroscope-traces').setData(data);
 }
@@ -226,6 +253,8 @@ function autoFlightStatus(a,hex){
  autoFlightLookupTimer=setTimeout(()=>{if(activeHex===hex)loadLicensedFlightStatus(a,hex)},650);
 }
 function trailStatus(hex){
+ const saved=historicalTrails.get(String(hex||'').toLowerCase());
+ if(saved)return 'Historical path: '+saved.pointCount+' reported positions • '+saved.attribution;
  const pts=recentTracks.get(String(hex||'').toLowerCase())||[];
  if(!pts.length)return 'Recording starts when the aircraft first appears on this radar.';
  const since=new Date(pts[0][2]).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -241,7 +270,7 @@ function details(a){
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
  +'<section class="flight-quick" aria-label="Flight overview"><div class="flight-airline">'+text(airlineFor(a)||'Aircraft tracking')+'</div><div class="flight-route-hero"><div><span>DEPARTURE</span><strong id="quick-origin">—</strong><small id="quick-origin-name">Checking route…</small></div><span class="flight-direction">✈</span><div><span>ARRIVAL</span><strong id="quick-destination">—</strong><small id="quick-destination-name">Checking route…</small></div></div><div class="flight-key-numbers"><div><span>Altitude</span><strong id="quick-altitude">'+text(altDisplay)+'</strong></div><div><span>Speed</span><strong id="quick-speed">'+text(speedDisplay)+'</strong></div><div><span>Arrival time</span><strong id="quick-arrival">Not verified</strong></div></div><div class="flight-quick-state" id="quick-state">Reported live position • Route awaiting verification</div><div class="flight-quick-state" id="trail-status">'+text(trailStatus(hex))+'</div></section>'
  +'<details class="full-flight" id="full-flight-details"><summary>View full aircraft information, schedules &amp; photo</summary>'
- +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed by your browser while the radar was open; dashed gold = origin; dashed orange = destination (great-circle references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
+ +'<p style="font-size:12px;color:#b8d6e9">Map tracks: pink = earlier positions from a licensed historical provider when available; cyan = positions observed by AeroScope; dashed gold/orange = airport references, not flown paths. Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
@@ -266,6 +295,7 @@ function details(a){
  if(expanded)expanded.addEventListener('toggle',()=>{if(expanded.open&&!expanded.dataset.photoLoaded){expanded.dataset.photoLoaded='1';loadPhoto(a,hex)}});
  const lookup=panel.querySelector('#lookup-flight-status');if(lookup)lookup.onclick=()=>loadLicensedFlightStatus(a,hex);
  autoFlightStatus(a,hex);
+ loadHistoricalFlightTrail(a,hex);
 }
 async function loadLicensedFlightStatus(a,hex){
  const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim(),hexId=String(a.hex||'').trim();
