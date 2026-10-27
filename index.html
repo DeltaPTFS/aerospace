@@ -189,8 +189,12 @@ function details(a){
  document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});setTimeout(()=>map.resize(),80);
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
+ const altDisplay=typeof alt==='number'?Math.round(alt).toLocaleString()+' ft':alt==='On ground'?'On ground':'Not reported';
+ const speedDisplay=Number.isFinite(a.gs)?Math.round(a.gs)+' kt':'Not reported';
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
- +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = origin; dashed orange = destination (great-circle references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
+ +'<section class="flight-quick" aria-label="Flight overview"><div class="flight-airline">'+text(airlineFor(a)||'Aircraft tracking')+'</div><div class="flight-route-hero"><div><span>DEPARTURE</span><strong id="quick-origin">—</strong><small id="quick-origin-name">Checking route…</small></div><span class="flight-direction">✈</span><div><span>ARRIVAL</span><strong id="quick-destination">—</strong><small id="quick-destination-name">Checking route…</small></div></div><div class="flight-key-numbers"><div><span>Altitude</span><strong>'+text(altDisplay)+'</strong></div><div><span>Speed</span><strong>'+text(speedDisplay)+'</strong></div><div><span>Arrival time</span><strong id="quick-arrival">Not verified</strong></div></div><div class="flight-quick-state" id="quick-state">Reported live position • Route awaiting verification</div></section>'
+ +'<details class="full-flight" id="full-flight-details"><summary>View full aircraft information, schedules &amp; photo</summary>'
+ +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed by your browser while the radar was open; dashed gold = origin; dashed orange = destination (great-circle references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
@@ -206,7 +210,7 @@ function details(a){
  +'<div class="atc-body"><p>AeroScope does not currently have verified aircraft-specific ATC audio or transcripts. Flight tracking data cannot tell us which frequency a pilot is using or exactly what was said.</p>'
  +'<div class="atc-service-grid"><div><b>Ground</b><span>Taxi and ramp-area instructions</span></div><div><b>Tower</b><span>Runway, takeoff and landing clearances</span></div><div><b>Departure</b><span>After takeoff and initial climb</span></div><div><b>Approach</b><span>Arrival and approach sequencing</span></div><div><b>Center</b><span>En-route air traffic control</span></div><div><b>ATIS</b><span>Recorded weather and airport information</span></div></div>'
  +'<div class="atc-lookup"><label for="atc-airport">Find real airport radio feeds</label><div class="atc-lookup-row"><input id="atc-airport" maxlength="4" placeholder="ICAO code (KJFK)" autocapitalize="characters"><button id="atc-find" type="button">Find feeds</button></div><p>Opens LiveATC.net, where legally available. Audio may be incomplete and must not be presented as an exact transcript of this flight.</p></div>'
- +'<div class="atc-recording-state"><strong>Playback / Transcript</strong><p>No licensed recording matched to '+text(call)+'.</p><button disabled>▶ No verified recording</button></div></div></details>';
+ +'<div class="atc-recording-state"><strong>Playback / Transcript</strong><p>No licensed recording matched to '+text(call)+'.</p><button disabled>▶ No verified recording</button></div></div></details></details>';
  const btn=document.getElementById('atc-find');
  if(btn)btn.onclick=()=>{const code=(document.getElementById('atc-airport').value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');if(code.length<3){document.getElementById('atc-airport').focus();return}window.open('https://www.liveatc.net/search/?icao='+encodeURIComponent(code),'_blank','noopener,noreferrer')};
  panel.querySelector('#follow-plane').onclick=()=>{followSelected=!followSelected;panel.querySelector('#follow-plane').textContent=followSelected?'● Following aircraft':'○ Follow aircraft';if(followSelected&&typeof a.lon==='number')map.easeTo({center:[a.lon,a.lat],duration:500})};
@@ -245,6 +249,11 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
+  const setQuick=(id,value)=>{const el=panel.querySelector(id);if(el)el.textContent=value};
+  setQuick('#quick-origin',d.origin?.code||'—');setQuick('#quick-origin-name',d.origin?.name||'Departure airport');
+  setQuick('#quick-destination',d.destination?.code||'—');setQuick('#quick-destination-name',d.destination?.name||'Arrival airport');
+  setQuick('#quick-arrival',d.estimatedArrival?fmt(d.estimatedArrival,d.destination?.timeZone):d.scheduledArrival?fmt(d.scheduledArrival,d.destination?.timeZone):'Not reported');
+  setQuick('#quick-state',String(d.status||'Status not reported')+' • Flight-status data: AeroDataBox');
   verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase(),destination:String(d.destination?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = origin reference; dashed orange = great-circle reference to verified destination. Neither is an actual or predicted flight path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
  }catch(err){const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Flight-status lookup failed: '+(err?.message||'Network or browser error')+'.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
