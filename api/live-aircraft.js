@@ -22,7 +22,7 @@ export default async function handler(req,res){
   if(!a)return res.status(200).json({available:false,reason:'Aircraft not currently reported by fast feed'});
   const take=v=>Number.isFinite(v)?v:null;
   const result={available:true,source:'FlyItalyADSB',attribution:'Live aircraft data © FlyItalyADSB (CC BY-SA 4.0)',aircraft:{
-   hex,
+   hex,dbFlags:Number.isFinite(a.dbFlags)?a.dbFlags:0,
    flight:typeof a.flight==='string'?a.flight.trim().slice(0,15):null,
    r:typeof a.r==='string'?a.r.slice(0,20):null,
    t:typeof a.t==='string'?a.t.slice(0,12):null,
