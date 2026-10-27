@@ -48,10 +48,10 @@ export default async function handler(req,res){
     return res.status(200).json({
       available:true,origin:apt(dep.airport),destination:apt(arr.airport),
       scheduledDeparture:dep.scheduledTime?.utc||null,estimatedDeparture:dep.revisedTime?.utc||null,actualDeparture:dep.runwayTime?.utc||null,
-      scheduledArrival:arr.scheduledTime?.utc||null,estimatedArrival:arr.revisedTime?.utc||null,actualArrival:arr.runwayTime?.utc||null,
+      scheduledArrival:arr.scheduledTime?.utc||null,estimatedArrival:arr.revisedTime?.utc||null,actualArrival:/arrived|landed|completed/i.test(String(f.status||''))?(arr.runwayTime?.utc||null):null,
       gateOrigin:dep.gate||null,gateDestination:arr.gate||null,status:f.status||null,
       checkedAt:new Date().toISOString(),attribution:'Flight-status data: AeroDataBox',
-      note:'Verified flight-instance data; times and gates may change.'
+      note:'Verified flight-instance data; times and gates may change. Actual arrival is withheld until flight status confirms arrival.'
     });
   } catch(e) {
     return res.status(500).json({available:false,reason:'AeroScope flight-status handler failed',errorType:e?.name||'Error'});
