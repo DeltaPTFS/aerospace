@@ -378,7 +378,7 @@ function updateLiveAircraftPanel(a){
  const climb=Number.isFinite(a.baro_rate)?Math.round(a.baro_rate).toLocaleString()+' ft/min':'Not reported';
  set('#quick-altitude',altitude);set('#quick-speed',speed);set('#quick-heading',heading);set('#quick-position-age',Number.isFinite(a.seen_pos)?a.seen_pos.toFixed(1)+' sec':'Not reported');
  set('#quick-climb',climb);
- const details=panel.querySelector('#full-flight-details .detail-grid:last-of-type');
+ const details=panel.querySelector('#full-flight-details > .detail-grid');
  if(details)for(const cell of details.querySelectorAll('.detail-row')){
   const label=cell.querySelector('span')?.textContent;
   const field=cell.querySelector('strong');
@@ -410,6 +410,7 @@ function startFocusedTracking(hex){
  const requestedHex=String(hex||'').toLowerCase();
  if(!/^[0-9a-f]{6}$/.test(requestedHex))return;
  const generation=focusedGeneration;
+ let nextDelay=FOCUSED_POLL_MS;
  const poll=async()=>{
   if(generation!==focusedGeneration||String(activeHex||'').toLowerCase()!==requestedHex)return;
   if(document.visibilityState!=='visible'||!document.querySelector('[data-tab="radar"]')?.classList.contains('active')){
@@ -419,6 +420,7 @@ function startFocusedTracking(hex){
   try{
    const response=await fetch('/api/live-aircraft?hex='+encodeURIComponent(requestedHex),{signal:controller.signal,cache:'no-store'});
    if(response.ok){
+    nextDelay=FOCUSED_POLL_MS;
     const data=await response.json(),p=data?.aircraft;
     if(generation===focusedGeneration&&data.available&&p?.hex===requestedHex){
      const existing=aircraft.find(a=>String(a.hex||'').toLowerCase()===requestedHex);
@@ -442,13 +444,14 @@ function startFocusedTracking(hex){
      }
     }
    }else if(response.status===429){
+    nextDelay=30000; // Back off when the shared provider quota is reached.
     const hint=panel.querySelector('#live-refresh-label');
     if(hint)hint.textContent='Fast live feed rate-limited; regional tracking still active';
    }
-  }catch(e){if(e?.name!=='AbortError'){const hint=panel.querySelector('#live-refresh-label');if(hint)hint.textContent='Fast feed temporarily unavailable • regional radar remains active'}}
+  }catch(e){if(e?.name!=='AbortError'){nextDelay=12000;const hint=panel.querySelector('#live-refresh-label');if(hint)hint.textContent='Fast feed temporarily unavailable • regional radar remains active'}}
   finally{
    if(focusedPollController===controller)focusedPollController=null;
-   if(generation===focusedGeneration)focusedPollTimer=setTimeout(poll,FOCUSED_POLL_MS);
+   if(generation===focusedGeneration)focusedPollTimer=setTimeout(poll,nextDelay);
   }
  };
  void poll();
