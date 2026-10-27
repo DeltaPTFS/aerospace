@@ -22,7 +22,7 @@ for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button
 document.querySelector('nav').after(regionBar);
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
-const RADAR_REFRESH_MS=20000,MIN_REFRESH_MS=16000;
+const RADAR_REFRESH_MS=20000,MIN_REFRESH_MS=16000; // Region stays economical; selected aircraft polls independently at 5s.
 
 const airportList=[
  ['JFK','John F. Kennedy International',-73.7781,40.6413],['LGA','LaGuardia',-73.874,40.7769],['EWR','Newark Liberty',-74.1745,40.6895],['TEB','Teterboro',-74.0608,40.8501],['HPN','Westchester County',-73.7076,41.067],['ISP','Long Island MacArthur',-73.1002,40.7953],['SWF','New York Stewart',-74.1048,41.5041],
@@ -267,7 +267,7 @@ function trailStatus(hex){
  return pts.length===1?'Tracking since '+since+' • waiting for another reported position':'Tracking since '+since+' • '+pts.length+' reported positions collected automatically';
 }
 function details(a){
- if(!a)return;const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;verifiedOrigin=null;drawRadarOverlays();
+ if(!a)return;stopFocusedTracking();const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;verifiedOrigin=null;drawRadarOverlays();
  document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});setTimeout(()=>map.resize(),80);
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
@@ -302,6 +302,7 @@ function details(a){
  const lookup=panel.querySelector('#lookup-flight-status');if(lookup)lookup.onclick=()=>loadLicensedFlightStatus(a,hex);
  autoFlightStatus(a,hex);
  loadHistoricalFlightTrail(a,hex);
+ startFocusedTracking(hex);
 }
 async function loadLicensedFlightStatus(a,hex){
  const callsign=String(a.flight||'').trim(),registration=String(a.r||'').trim(),hexId=String(a.hex||'').trim();
@@ -346,7 +347,96 @@ const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
 function results(){const q=search.value.trim().toUpperCase();if(!q){resultBox.hidden=true;resultBox.replaceChildren();return}const matches=aircraft.filter(a=>searchable(a).includes(q));resultBox.hidden=false;resultBox.replaceChildren();const heading=document.createElement('p');heading.className='result-note';heading.textContent=matches.length+' matching aircraft currently loaded in this map area';resultBox.appendChild(heading);for(const a of matches.slice(0,30)){const b=document.createElement('button');const call=(a.flight||a.hex||'Unknown').trim();b.textContent=call+' · '+(airlineFor(a)||'Airline unavailable');const sub=document.createElement('span');sub.className='sub';sub.textContent=[a.t,a.r,a.alt_baro==='ground'?'On ground':(typeof a.alt_baro==='number'?a.alt_baro+' ft':'')].filter(Boolean).join(' · ');b.appendChild(sub);b.onclick=()=>{resultBox.hidden=true;search.value='';render();details(a);map.flyTo({center:[a.lon,a.lat],zoom:Math.max(map.getZoom(),9),essential:true});document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'nearest'})};resultBox.appendChild(b)}if(matches.length>30){const n=document.createElement('p');n.className='result-note';n.textContent='Showing first 30 matches. Refine your search for more.';resultBox.appendChild(n)}if(!matches.length){const n=document.createElement('p');n.className='result-note';n.textContent='No match in this regional feed. Search is not a global airline schedule or route database.';resultBox.appendChild(n)}}
 function highlightSelected(){for(const item of markers.values())item.el.classList.toggle('selected-aircraft',Boolean(activeHex&&item.aircraft.hex===activeHex))}
-function closeSelection(){activeHex=null;verifiedOrigin=null;drawRadarOverlays();followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
+// FlyItalyADSB live aircraft reports refresh every few seconds; there is no provider push socket.
+// Check only the selected aircraft, only while this page's radar is visible.
+let focusedPollTimer=null,focusedPollController=null,focusedGeneration=0;
+const FOCUSED_POLL_MS=5000;
+function liveText(value,fallback='Not reported'){return value==null?fallback:String(value)}
+function updateLiveAircraftPanel(a){
+ if(String(a?.hex||'').toLowerCase()!==String(activeHex||'').toLowerCase())return;
+ const set=(sel,value)=>{const el=panel.querySelector(sel);if(el&&el.textContent!==value)el.textContent=value};
+ const altitude=a.alt_baro==='ground'?'On ground':Number.isFinite(a.alt_baro)?Math.round(a.alt_baro).toLocaleString()+' ft':'Not reported';
+ const speed=Number.isFinite(a.gs)?Math.round(a.gs)+' kt':'Not reported';
+ const heading=Number.isFinite(a.track)?Math.round((a.track+360)%360)+'°':'Not reported';
+ const climb=Number.isFinite(a.baro_rate)?Math.round(a.baro_rate).toLocaleString()+' ft/min':'Not reported';
+ set('#quick-altitude',altitude);set('#quick-speed',speed);set('#quick-heading',heading);
+ set('#quick-climb',climb);
+ const details=panel.querySelector('#full-flight-details .detail-grid:last-of-type');
+ if(details)for(const cell of details.querySelectorAll('.detail-row')){
+  const label=cell.querySelector('span')?.textContent;
+  const field=cell.querySelector('strong');
+  if(!field)continue;
+  const mapping={
+   'Barometric altitude':altitude,
+   'Geometric altitude':Number.isFinite(a.alt_geom)?Math.round(a.alt_geom).toLocaleString()+' ft':'Not reported',
+   'Ground speed':speed,
+   'Heading':heading,
+   'Vertical speed':climb,
+   'Squawk':liveText(a.squawk),
+   'Latitude':Number.isFinite(a.lat)?a.lat.toFixed(5):'Not reported',
+   'Longitude':Number.isFinite(a.lon)?a.lon.toFixed(5):'Not reported',
+   'Position age':Number.isFinite(a.seen_pos)?a.seen_pos.toFixed(1)+' seconds':'Not reported',
+   'Position source':liveText(a.type)
+  };
+  if(Object.prototype.hasOwnProperty.call(mapping,label)&&field.textContent!==mapping[label])field.textContent=mapping[label];
+ }
+ if(a.alt_baro==='ground')set('.flight-detail-head .flight-status','Reported on ground');
+ else if(Number.isFinite(a.alt_baro))set('.flight-detail-head .flight-status','Reported airborne');
+}
+function stopFocusedTracking(){
+ focusedGeneration++;clearTimeout(focusedPollTimer);
+ if(focusedPollController)focusedPollController.abort();
+ focusedPollController=null;
+}
+function startFocusedTracking(hex){
+ stopFocusedTracking();
+ const requestedHex=String(hex||'').toLowerCase();
+ if(!/^[0-9a-f]{6}$/.test(requestedHex))return;
+ const generation=focusedGeneration;
+ const poll=async()=>{
+  if(generation!==focusedGeneration||String(activeHex||'').toLowerCase()!==requestedHex)return;
+  if(document.visibilityState!=='visible'||!document.querySelector('[data-tab="radar"]')?.classList.contains('active')){
+   focusedPollTimer=setTimeout(poll,FOCUSED_POLL_MS);return;
+  }
+  const controller=new AbortController();focusedPollController=controller;
+  try{
+   const response=await fetch('/api/live-aircraft?hex='+encodeURIComponent(requestedHex),{signal:controller.signal,cache:'no-store'});
+   if(response.ok){
+    const data=await response.json(),p=data?.aircraft;
+    if(generation===focusedGeneration&&data.available&&p?.hex===requestedHex){
+     const existing=aircraft.find(a=>String(a.hex||'').toLowerCase()===requestedHex);
+     if(existing){
+      const fresh=Number.isFinite(p.seen_pos)&&p.seen_pos<=20;
+      const fields=fresh?['lat','lon','alt_baro','alt_geom','gs','track','baro_rate','squawk','seen_pos','type']:['seen_pos'];
+      let changed=false;
+      for(const field of fields)if(p[field]!==null&&p[field]!==undefined&&existing[field]!==p[field]){existing[field]=p[field];changed=true}
+      if(changed){
+       updateLiveAircraftPanel(existing);
+       if(fresh&&Number.isFinite(existing.lat)&&Number.isFinite(existing.lon)){
+        rememberAircraftPositions([existing]);
+        const marker=markers.get(requestedHex);
+        if(marker){marker.aircraft=existing;marker.marker.setLngLat([existing.lon,existing.lat]);marker.marker.setRotation(Number(existing.track)||0)}
+        if(followSelected)map.easeTo({center:[existing.lon,existing.lat],duration:220,essential:true});
+       }
+      }
+      const age=Number.isFinite(p.seen_pos)?' • position age '+p.seen_pos.toFixed(1)+'s':'';
+      const hint=panel.querySelector('#live-refresh-label');
+      if(hint)hint.textContent='Fast live instruments: FlyItalyADSB • polling every 5s'+age;
+     }
+    }
+   }else if(response.status===429){
+    const hint=panel.querySelector('#live-refresh-label');
+    if(hint)hint.textContent='Fast live feed rate-limited; regional tracking still active';
+   }
+  }catch(e){if(e?.name!=='AbortError'){const hint=panel.querySelector('#live-refresh-label');if(hint)hint.textContent='Fast feed temporarily unavailable • regional radar remains active'}}
+  finally{
+   if(focusedPollController===controller)focusedPollController=null;
+   if(generation===focusedGeneration)focusedPollTimer=setTimeout(poll,FOCUSED_POLL_MS);
+  }
+ };
+ void poll();
+}
+function closeSelection(){stopFocusedTracking();activeHex=null;verifiedOrigin=null;drawRadarOverlays();followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
 function positionBetween(start,end,t){return [start[0]+(end[0]-start[0])*t,start[1]+(end[1]-start[1])*t]}
 function animateMarker(item,to){
  // Render the most recent reported coordinates immediately, not a constantly running interpolation.
