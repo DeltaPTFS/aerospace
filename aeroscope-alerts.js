@@ -23,7 +23,7 @@ function emit(label,message,hex){
  }
 }
 button.onclick=async()=>{
- if(enabled){enabled=false;previous.clear();button.textContent='🔔 Alerts Off';toast('In-session notifications are off.');return}
+ if(enabled){enabled=false;previous.clear();button.classList.remove('active');button.textContent='🔔 Alerts Off';toast('In-session notifications are off.');return}
  enabled=true;button.textContent='🔔 Alerts On';button.classList.add('active');
  if(typeof Notification==='function'&&Notification.permission==='default'){
   try{await Notification.requestPermission()}catch{}
