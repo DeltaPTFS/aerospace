@@ -1,1 +1,20 @@
 #toolbar{right:8px;left:8px;flex-wrap:wrap}#search{flex:1;min-width:110px;width:auto}#map-mode{white-space:nowrap;background:#10283cbb;backdrop-filter:blur(12px)}.flight-note{position:absolute;z-index:2;bottom:27px;left:8px;right:50px;background:#071e33bb;backdrop-filter:blur(12px);font-size:10px;padding:7px;border-radius:10px;pointer-events:none}.sky{height:48dvh;max-height:480px;position:relative;overflow:hidden;border:13px solid #d4e0e9;border-radius:48% 48% 43% 43%/32% 32% 32% 32%;box-shadow:inset 0 0 0 10px #74899d,0 8px 28px #0008;isolation:isolate;transition:background 1s}.sky.day{background:linear-gradient(#1768af 5%,#65bdff 65%,#d9f3ff)}.sky.night{background:linear-gradient(#08162e,#193c6b 65%,#55799e)}.sky.cloudy{background:linear-gradient(#7e9baa,#c7dde5)}.sun{position:absolute;left:71%;top:14%;border-radius:50%;width:48px;height:48px;background:#fff9ca;box-shadow:0 0 42px #ffedba}.night .sun{background:#ebf5ff;box-shadow:0 0 34px #ffffff7a}.cloud{position:absolute;width:160px;height:38px;background:#fff9;border-radius:50%;filter:blur(12px);animation:cloudfloat 18s linear infinite}.cloud1{top:34%;left:-20%}.cloud2{top:64%;left:45%;animation-duration:29s}.wing{position:absolute;width:125%;height:95px;left:12%;top:58%;clip-path:polygon(0 90%,72% 25%,100% 0,95% 21%,74% 55%,10% 100%);background:linear-gradient(170deg,#e1e9f0,#bdcbd5 67%,#788897);transform:rotate(-5deg);filter:drop-shadow(0 8px 6px #1115)}@keyframes cloudfloat{to{transform:translateX(150vw)}}.window-controls{display:flex;gap:8px;margin:15px 0}#other a{color:#8bd6ff}#other{padding-bottom:90px}nav button{flex-shrink:0}
+/* v0.5.1 — scan-friendly aircraft overview; comprehensive information stays expandable */
+.flight-quick{margin:14px 0 12px;padding:16px;border:1px solid #37779d;border-radius:16px;background:linear-gradient(135deg,#173c5a,#0c253c 80%);box-shadow:0 6px 19px #0002}
+.flight-airline{font-size:12px;font-weight:700;color:#a8d7f3;letter-spacing:.2px;margin-bottom:11px}
+.flight-route-hero{display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);align-items:center;gap:8px}
+.flight-route-hero>div{min-width:0}.flight-route-hero>div:last-child{text-align:right}
+.flight-route-hero span:not(.flight-direction){display:block;color:#a8c6dd;font-size:10px;font-weight:700;letter-spacing:.9px}
+.flight-route-hero strong{display:block;color:#f3fbff;font-size:clamp(25px,3.2vw,38px);line-height:1.25;font-weight:850;overflow-wrap:anywhere}
+.flight-route-hero small{display:block;color:#bbd8ed;font-size:11px;line-height:1.3;max-height:3em;overflow:hidden}
+.flight-direction{color:#ffd677;font-size:23px;text-align:center}
+.flight-key-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px;border-top:1px solid #37607d;padding-top:13px}
+.flight-key-numbers>div{min-width:0}.flight-key-numbers span{display:block;color:#accce4;font-size:11px;margin-bottom:4px}
+.flight-key-numbers strong{display:block;color:white;font-size:clamp(13px,1.5vw,18px);line-height:1.25;overflow-wrap:anywhere}
+.flight-quick-state{margin-top:12px;font-size:11px;color:#9bd6f6;line-height:1.4}
+.full-flight{margin:10px 0;border:1px solid #365679;border-radius:12px;background:#0d2238;overflow:hidden}
+.full-flight>summary{cursor:pointer;padding:13px 14px;background:#173755;color:#eaf8ff;font-weight:700;font-size:13px;list-style-position:inside}
+.full-flight[open]>summary{border-bottom:1px solid #365679}
+.full-flight>.aircraft-photo,.full-flight>.schedule-box,.full-flight>.schedule-links,.full-flight>.atc-accordion,.full-flight>.detail-grid,.full-flight>h3,.full-flight>p{margin-left:12px!important;margin-right:12px!important}
+.full-flight>.schedule-box{padding-top:10px!important}
+@media(max-width:600px){.flight-quick{padding:12px}.flight-route-hero strong{font-size:26px}.flight-key-numbers{gap:6px}.flight-key-numbers strong{font-size:13px}}
