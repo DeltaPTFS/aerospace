@@ -37,20 +37,20 @@ const airportList=[
 const airportsByCode=new Map(airportList.map(a=>[a[0],a]));
 // Aircraft observations are collected on every feed refresh, even when no plane is selected.
 // Restore recently observed positions from this browser; no pre-visit flight history is claimed.
-const recentTracks=new Map();let verifiedOrigin=null,lastTrackSave=0;
+const recentTracks=new Map(),trackCallsigns=new Map();let verifiedOrigin=null,lastTrackSave=0;
 try{
  const stored=JSON.parse(localStorage.getItem('aeroscope-observed-trails-v1')||'[]');
  if(Array.isArray(stored)){for(const entry of stored.slice(0,240)){
   if(!Array.isArray(entry)||!/^[0-9a-f]{6}$/i.test(entry[0]||''))continue;
   const points=Array.isArray(entry[1])?entry[1].filter(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&Number.isFinite(p[2])&&p[2]>Date.now()-60*60000).slice(-80):[];
-  if(points.length)recentTracks.set(entry[0],points);
+  if(points.length){recentTracks.set(entry[0].toLowerCase(),points);if(typeof entry[2]==='string')trackCallsigns.set(entry[0].toLowerCase(),entry[2]);}
  }}
 }catch{}
 function persistObservedTrails(){
  if(Date.now()-lastTrackSave<60000)return;lastTrackSave=Date.now();
  try{
   const entries=[...recentTracks.entries()].filter(([,p])=>p.length&&p.at(-1)[2]>Date.now()-60*60000)
-   .sort((a,b)=>b[1].at(-1)[2]-a[1].at(-1)[2]).slice(0,180).map(([k,p])=>[k,p.slice(-70)]);
+   .sort((a,b)=>b[1].at(-1)[2]-a[1].at(-1)[2]).slice(0,180).map(([k,p])=>[k,p.slice(-70),trackCallsigns.get(k)||'']);
   localStorage.setItem('aeroscope-observed-trails-v1',JSON.stringify(entries));
  }catch{}
 }
@@ -65,6 +65,27 @@ function routeArc(a,b){
  for(let i=0;i<=36;i++){const t=i/36,p=Math.sin((1-t)*theta)/sn,q=Math.sin(t*theta)/sn,x=p*u[0]+q*v[0],y=p*u[1]+q*v[1],z=p*u[2]+q*v[2];out.push([Math.atan2(y,x)/rad,Math.atan2(z,Math.hypot(x,y))/rad])}
  return out;
 }
+// A trail is recorded history, not a projection. Feed gaps remain gaps.
+function recordedSegments(points){
+ const segments=[];let segment=[];
+ for(const p of points){
+  if(!Array.isArray(p)||!Number.isFinite(p[0])||!Number.isFinite(p[1])||!Number.isFinite(p[2]))continue;
+  const prev=segment.at(-1);
+  if(prev){
+   const dt=(p[2]-prev[2])/1000;
+   const km=111.2*Math.hypot(p[1]-prev[1],(p[0]-prev[0])*Math.cos(p[1]*Math.PI/180));
+   if(dt<=0)continue;
+   // Allow normal 20-second updates and brief network delays; never bridge large gaps/teleports.
+   if(dt>95||km>Math.max(2.5,dt*.38)){
+    if(segment.length>1)segments.push(segment);
+    segment=[];
+   }
+  }
+  segment.push(p);
+ }
+ if(segment.length>1)segments.push(segment);
+ return segments;
+}
 function drawRadarOverlays(){
  if(!map.isStyleLoaded())return;
  const airports={type:'FeatureCollection',features:airportList.map(a=>({type:'Feature',properties:{code:a[0],name:a[1]},geometry:{type:'Point',coordinates:[a[2],a[3]]}}))};
@@ -75,14 +96,23 @@ function drawRadarOverlays(){
  }
  const points=recentTracks.get(activeHex)||[];
  const features=[];
- // Only connect observations within a short time gap and plausible travel distance.
- let segment=[];const segments=[];
- for(const p of points){const prev=segment.at(-1);const dt=prev?(p[2]-prev[2])/1000:0;const km=prev?111*Math.hypot((p[1]-prev[1]),(p[0]-prev[0])*Math.cos(p[1]*Math.PI/180)):0;
-  if(prev&&(dt>45||dt<=0||km>Math.max(3,dt*.36))){if(segment.length>1)segments.push(segment);segment=[]}
-  segment.push(p);
+ // Light, short trails are drawn automatically for already-visible aircraft, with no click required.
+ // Limit background lines to protect iPhone and MacBook performance.
+ if(map.getZoom()>=6){
+  const bounds=map.getBounds();
+  let shown=0;
+  for(const a of aircraft){
+   if(shown>=65)break;
+   if(!a.hex||a.hex===activeHex||!Number.isFinite(a.lon)||!Number.isFinite(a.lat)||!bounds.contains([a.lon,a.lat]))continue;
+   const observed=recentTracks.get(a.hex);
+   if(!observed||observed.length<2||Date.now()-observed.at(-1)[2]>95000)continue;
+   const segments=recordedSegments(observed.slice(-16));
+   for(const part of segments)features.push({type:'Feature',properties:{kind:'background'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
+   shown++;
+  }
  }
- if(segment.length>1)segments.push(segment);
- for(const part of segments)features.push({type:'Feature',properties:{kind:'observed'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
+ // Selecting a flight instantly displays its trail from first observation, not first click.
+ for(const part of recordedSegments(points))features.push({type:'Feature',properties:{kind:'observed'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
  const origin=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.code):null;
  const destination=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.destination):null;
  const last=points.at(-1);
@@ -93,6 +123,7 @@ function drawRadarOverlays(){
   map.addSource('aeroscope-traces',{type:'geojson',data});
   map.addLayer({id:'aeroscope-origin-reference',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'reference'],paint:{'line-color':'#f6d875','line-width':2,'line-opacity':0.85,'line-dasharray':[2,3]}});
   map.addLayer({id:'aeroscope-destination',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'destination'],paint:{'line-color':'#f4a64f','line-width':2.5,'line-opacity':.85,'line-dasharray':[2,2]}});
+  map.addLayer({id:'aeroscope-background-trails',type:'line',source:'aeroscope-traces',minzoom:6,filter:['==',['get','kind'],'background'],paint:{'line-color':'#6ad6ff','line-width':1.5,'line-opacity':0.55}});
   map.addLayer({id:'aeroscope-observed-track',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'observed'],paint:{'line-color':'#44e1f7','line-width':3,'line-opacity':0.95}});
  }else map.getSource('aeroscope-traces').setData(data);
 }
@@ -108,23 +139,33 @@ map.on('click','aeroscope-airport-dots',e=>{
 });
 map.on('mouseenter','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='pointer');
 map.on('mouseleave','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='');
+// All aircraft positions are sampled on EVERY regional radar refresh, independent of selection.
+// The browser cannot know where a flight was before it first appeared in the provider feed.
 function rememberAircraftPositions(list){
+ const receivedAt=Date.now();
  for(const a of list){
-  if(!/^[0-9a-f]{6}$/i.test(a.hex||'')||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
-  let pts=recentTracks.get(a.hex);
-  if(!pts){pts=[];recentTracks.set(a.hex,pts)}
-  const last=pts.at(-1);
+  const hex=String(a.hex||'').toLowerCase();
+  if(!/^[0-9a-f]{6}$/.test(hex)||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
   const age=Number(a.seen_pos);
-  if(Number.isFinite(age)&&age>120)continue;
-  if(!last||Math.abs(a.lon-last[0])+Math.abs(a.lat-last[1])>0.0003){
-    if(last&&Math.abs(a.lon-last[0])+Math.abs(a.lat-last[1])>0.6){pts.length=0}
-    pts.push([a.lon,a.lat,Date.now()-(Number.isFinite(age)?Math.max(0,age)*1000:0)]);
-    if(pts.length>80)pts.shift();
-  }
+  if(Number.isFinite(age)&&age>75)continue; // Skip stale or untrusted feed locations.
+  const reportedAt=receivedAt-(Number.isFinite(age)?Math.max(0,age)*1000:0);
+  const call=String(a.flight||'').trim().toUpperCase();
+  const previousCall=trackCallsigns.get(hex);
+  // An airframe can fly multiple flights: never connect a different known callsign's track.
+  if(call&&previousCall&&call!==previousCall)recentTracks.delete(hex);
+  if(call)trackCallsigns.set(hex,call);
+  let pts=recentTracks.get(hex);
+  if(!pts){pts=[];recentTracks.set(hex,pts)}
+  const prev=pts.at(-1);
+  if(prev&&reportedAt<=prev[2]+300)continue; 
+  if(prev&&Math.abs(a.lon-prev[0])+Math.abs(a.lat-prev[1])<=0.00015)continue;
+  // Do not interpolate missing points. Segment disconnections are handled when drawing.
+  pts.push([a.lon,a.lat,reportedAt]);
+  if(pts.length>100)pts.shift();
  }
  if(recentTracks.size>350){
   const oldest=[...recentTracks.entries()].sort((a,b)=>(a[1].at(-1)?.[2]||0)-(b[1].at(-1)?.[2]||0));
-  for(const [k] of oldest.slice(0,recentTracks.size-275)){if(k!==activeHex)recentTracks.delete(k)}
+  for(const [key] of oldest.slice(0,recentTracks.size-275)){if(key!==activeHex){recentTracks.delete(key);trackCallsigns.delete(key)}}
  }
  persistObservedTrails();
  drawRadarOverlays();
