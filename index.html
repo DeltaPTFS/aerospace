@@ -172,7 +172,15 @@ map.on('click','aeroscope-airport-dots',e=>{
  const card=document.createElement('div');card.style.cssText='color:#12263a;min-width:190px;font:13px Arial,sans-serif';
  const heading=document.createElement('strong');heading.textContent=code+' — '+f.properties.name;card.appendChild(heading);
  const link=document.createElement('button');link.textContent='🎧 Open AeroScope ATC';link.type='button';link.style.cssText='display:block;margin-top:9px;width:100%;padding:9px;border-radius:8px;background:#176aa0;color:white;text-align:center;border:0;font-weight:700';link.onclick=()=>{document.querySelector('[data-tab="atc"]')?.click();const field=document.getElementById('atc-airport-filter');if(field){field.value=code;field.dispatchEvent(new Event('input'))}};card.appendChild(link);
- const note=document.createElement('small');note.textContent='Recordings play inside AeroScope when licensed audio is available.';note.style.cssText='display:block;margin-top:6px;color:#435b6b';card.appendChild(note);
+ const atisButton=document.createElement('button');atisButton.type='button';atisButton.textContent='☁ View airport ATIS';atisButton.style.cssText='display:block;width:100%;margin-top:6px;padding:9px;border-radius:8px;background:#174c67;color:white;border:0;font-weight:700';
+ atisButton.onclick=()=>{
+  document.querySelector('[data-tab="atc"]')?.click();
+  document.querySelector('.atc-categories [data-category="atis"]')?.click();
+  const input=document.querySelector('.atc-atis-search input');
+  if(input)input.value=code.length===3?'K'+code:code;
+ };
+ card.appendChild(atisButton);
+ const note=document.createElement('small');note.textContent='ATIS information is separate from pilot-controller radio recordings.';note.style.cssText='display:block;margin-top:6px;color:#435b6b';card.appendChild(note);
  new maplibregl.Popup({offset:12}).setLngLat(e.lngLat).setDOMContent(card).addTo(map);
 });
 map.on('mouseenter','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='pointer');
