@@ -37,6 +37,15 @@ const airportList=[
 const airportsByCode=new Map(airportList.map(a=>[a[0],a]));
 const recentTracks=new Map();let verifiedOrigin=null;
 const emptyFC=()=>({type:'FeatureCollection',features:[]});
+// Approximate great-circle route reference, not a filed/actual flight trajectory.
+function routeArc(a,b){
+ const rad=Math.PI/180,lat1=a[1]*rad,lat2=b[1]*rad,lon1=a[0]*rad,lon2=b[0]*rad;
+ const u=[Math.cos(lat1)*Math.cos(lon1),Math.cos(lat1)*Math.sin(lon1),Math.sin(lat1)],v=[Math.cos(lat2)*Math.cos(lon2),Math.cos(lat2)*Math.sin(lon2),Math.sin(lat2)];
+ const theta=Math.acos(Math.max(-1,Math.min(1,u[0]*v[0]+u[1]*v[1]+u[2]*v[2])));
+ if(theta<0.000001)return [a,b];const sn=Math.sin(theta),out=[];
+ for(let i=0;i<=36;i++){const t=i/36,p=Math.sin((1-t)*theta)/sn,q=Math.sin(t*theta)/sn,x=p*u[0]+q*v[0],y=p*u[1]+q*v[1],z=p*u[2]+q*v[2];out.push([Math.atan2(y,x)/rad,Math.atan2(z,Math.hypot(x,y))/rad])}
+ return out;
+}
 function drawRadarOverlays(){
  if(!map.isStyleLoaded())return;
  const airports={type:'FeatureCollection',features:airportList.map(a=>({type:'Feature',properties:{code:a[0],name:a[1]},geometry:{type:'Point',coordinates:[a[2],a[3]]}}))};
@@ -58,8 +67,8 @@ function drawRadarOverlays(){
  const origin=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.code):null;
  const destination=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.destination):null;
  const last=points.at(-1);
- if(origin&&last)features.push({type:'Feature',properties:{kind:'reference'},geometry:{type:'LineString',coordinates:[[origin[2],origin[3]],[last[0],last[1]]]}});
- if(destination&&last)features.push({type:'Feature',properties:{kind:'destination'},geometry:{type:'LineString',coordinates:[[last[0],last[1]],[destination[2],destination[3]]]}});
+ if(origin&&last)features.push({type:'Feature',properties:{kind:'reference'},geometry:{type:'LineString',coordinates:routeArc([origin[2],origin[3]],[last[0],last[1]])}});
+ if(destination&&last)features.push({type:'Feature',properties:{kind:'destination'},geometry:{type:'LineString',coordinates:routeArc([last[0],last[1]],[destination[2],destination[3]])}});
  const data={type:'FeatureCollection',features};
  if(!map.getSource('aeroscope-traces')){
   map.addSource('aeroscope-traces',{type:'geojson',data});
@@ -158,7 +167,7 @@ function details(a){
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
- +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = origin; dashed orange = destination (straight-line references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
+ +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = origin; dashed orange = destination (great-circle references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
@@ -213,7 +222,7 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
-  verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase(),destination:String(d.destination?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = origin reference; dashed orange = straight-line reference to verified destination. Neither is an actual or predicted flight path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
+  verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase(),destination:String(d.destination?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = origin reference; dashed orange = great-circle reference to verified destination. Neither is an actual or predicted flight path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
  }catch(err){const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Flight-status lookup failed: '+(err?.message||'Network or browser error')+'.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
 const resultBox=document.getElementById('search-results');
