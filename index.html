@@ -64,7 +64,12 @@ function drawRadarOverlays(){
 map.on('style.load',drawRadarOverlays);
 map.on('click','aeroscope-airport-dots',e=>{
  const f=e.features?.[0];if(!f)return;
- new maplibregl.Popup({offset:12}).setLngLat(e.lngLat).setText(f.properties.code+' — '+f.properties.name).addTo(map);
+ const code=String(f.properties.code||'').replace(/[^A-Z0-9]/g,'');
+ const card=document.createElement('div');card.style.cssText='color:#12263a;min-width:190px;font:13px Arial,sans-serif';
+ const heading=document.createElement('strong');heading.textContent=code+' — '+f.properties.name;card.appendChild(heading);
+ const link=document.createElement('a');link.textContent='🎧 Find ATC feeds';link.href='https://www.liveatc.net/search/?icao='+encodeURIComponent(code);link.target='_blank';link.rel='noopener noreferrer';link.style.cssText='display:block;margin-top:9px;padding:9px;border-radius:8px;background:#176aa0;color:white;text-align:center;text-decoration:none;font-weight:700';card.appendChild(link);
+ const note=document.createElement('small');note.textContent='External LiveATC directory. Coverage varies by airport.';note.style.cssText='display:block;margin-top:6px;color:#435b6b';card.appendChild(note);
+ new maplibregl.Popup({offset:12}).setLngLat(e.lngLat).setDOMContent(card).addTo(map);
 });
 map.on('mouseenter','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='pointer');
 map.on('mouseleave','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='');
