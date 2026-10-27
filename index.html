@@ -35,7 +35,26 @@ const airportList=[
  ['LHR','London Heathrow',-0.4543,51.4700],['CDG','Paris Charles de Gaulle',2.5479,49.0097],['FRA','Frankfurt Main',8.5706,50.0379],['AMS','Amsterdam Schiphol',4.7639,52.3105],['YYZ','Toronto Pearson',-79.6248,43.6777],['YVR','Vancouver',-123.1839,49.1967],['DXB','Dubai International',55.3644,25.2532],['HND','Tokyo Haneda',139.7798,35.5494],['SIN','Singapore Changi',103.9894,1.3644]
 ];
 const airportsByCode=new Map(airportList.map(a=>[a[0],a]));
-const recentTracks=new Map();let verifiedOrigin=null;
+// Aircraft observations are collected on every feed refresh, even when no plane is selected.
+// Restore recently observed positions from this browser; no pre-visit flight history is claimed.
+const recentTracks=new Map();let verifiedOrigin=null,lastTrackSave=0;
+try{
+ const stored=JSON.parse(localStorage.getItem('aeroscope-observed-trails-v1')||'[]');
+ if(Array.isArray(stored)){for(const entry of stored.slice(0,240)){
+  if(!Array.isArray(entry)||!/^[0-9a-f]{6}$/i.test(entry[0]||''))continue;
+  const points=Array.isArray(entry[1])?entry[1].filter(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&Number.isFinite(p[2])&&p[2]>Date.now()-60*60000).slice(-80):[];
+  if(points.length)recentTracks.set(entry[0],points);
+ }}
+}catch{}
+function persistObservedTrails(){
+ if(Date.now()-lastTrackSave<60000)return;lastTrackSave=Date.now();
+ try{
+  const entries=[...recentTracks.entries()].filter(([,p])=>p.length&&p.at(-1)[2]>Date.now()-60*60000)
+   .sort((a,b)=>b[1].at(-1)[2]-a[1].at(-1)[2]).slice(0,180).map(([k,p])=>[k,p.slice(-70)]);
+  localStorage.setItem('aeroscope-observed-trails-v1',JSON.stringify(entries));
+ }catch{}
+}
+window.addEventListener('pagehide',persistObservedTrails);
 const emptyFC=()=>({type:'FeatureCollection',features:[]});
 // Approximate great-circle route reference, not a filed/actual flight trajectory.
 function routeArc(a,b){
@@ -103,7 +122,11 @@ function rememberAircraftPositions(list){
     if(pts.length>80)pts.shift();
   }
  }
- if(recentTracks.size>900){for(const k of recentTracks.keys()){if(!list.some(a=>a.hex===k))recentTracks.delete(k);if(recentTracks.size<=600)break}}
+ if(recentTracks.size>350){
+  const oldest=[...recentTracks.entries()].sort((a,b)=>(a[1].at(-1)?.[2]||0)-(b[1].at(-1)?.[2]||0));
+  for(const [k] of oldest.slice(0,recentTracks.size-275)){if(k!==activeHex)recentTracks.delete(k)}
+ }
+ persistObservedTrails();
  drawRadarOverlays();
 }
 
