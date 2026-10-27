@@ -2,7 +2,7 @@ export default async function handler(req,res){
  const lat=Number(req.query.lat),lon=Number(req.query.lon);
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return res.status(400).json({error:'Invalid coordinates'});
  const endpoints=[
-  {name:'adsb.lol',url:`https://api.adsb.lol/v2/point/${lat.toFixed(3)}/${lon.toFixed(3)}/250`},
+  {name:'adsb.lol',url:`https://api.adsb.lol/v2/point/${lat.toFixed(1)}/${lon.toFixed(1)}/250`},
   {name:'adsb.one',url:`https://api.adsb.one/v2/point/${lat.toFixed(3)}/${lon.toFixed(3)}/250`}
  ];
  let last='';
