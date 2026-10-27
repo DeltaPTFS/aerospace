@@ -19,6 +19,66 @@ const map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.o
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
 const RADAR_REFRESH_MS=12000,MIN_REFRESH_MS=8500;
+
+const airportList=[
+ ['JFK','John F. Kennedy International',-73.7781,40.6413],['LGA','LaGuardia',-73.874,40.7769],['EWR','Newark Liberty',-74.1745,40.6895],['TEB','Teterboro',-74.0608,40.8501],['HPN','Westchester County',-73.7076,41.067],['ISP','Long Island MacArthur',-73.1002,40.7953],['SWF','New York Stewart',-74.1048,41.5041],
+ ['BOS','Boston Logan',-71.0052,42.3656],['PHL','Philadelphia',-75.2411,39.8744],['BWI','Baltimore/Washington',-76.6683,39.1754],['DCA','Reagan National',-77.0377,38.8521],['IAD','Washington Dulles',-77.4558,38.9531],
+ ['ATL','Atlanta Hartsfield-Jackson',-84.4277,33.6407],['ORD','Chicago O Hare',-87.9073,41.9742],['MDW','Chicago Midway',-87.7524,41.7868],['DTW','Detroit Metro',-83.3534,42.2162],['CLT','Charlotte Douglas',-80.9431,35.2144],
+ ['MIA','Miami International',-80.2906,25.7954],['FLL','Fort Lauderdale',-80.1527,26.0726],['MCO','Orlando International',-81.3089,28.4312],['TPA','Tampa International',-82.5332,27.9755],
+ ['DFW','Dallas/Fort Worth',-97.0403,32.8998],['DAL','Dallas Love Field',-96.8518,32.8471],['IAH','Houston Intercontinental',-95.3414,29.9902],['DEN','Denver International',-104.6737,39.8561],
+ ['SEA','Seattle-Tacoma',-122.3088,47.4502],['SFO','San Francisco International',-122.379,37.6213],['LAX','Los Angeles International',-118.4085,33.9416],['SAN','San Diego International',-117.1897,32.7336],['LAS','Harry Reid International',-115.1523,36.084],['PHX','Phoenix Sky Harbor',-112.0116,33.4342],
+ ['MSP','Minneapolis-St Paul',-93.2218,44.8848],['SLC','Salt Lake City',-111.9791,40.7899],['PDX','Portland International',-122.5975,45.5898],
+ ['LHR','London Heathrow',-0.4543,51.4700],['CDG','Paris Charles de Gaulle',2.5479,49.0097],['FRA','Frankfurt Main',8.5706,50.0379],['AMS','Amsterdam Schiphol',4.7639,52.3105],['YYZ','Toronto Pearson',-79.6248,43.6777],['YVR','Vancouver',-123.1839,49.1967],['DXB','Dubai International',55.3644,25.2532],['HND','Tokyo Haneda',139.7798,35.5494],['SIN','Singapore Changi',103.9894,1.3644]
+];
+const airportsByCode=new Map(airportList.map(a=>[a[0],a]));
+const recentTracks=new Map();let verifiedOrigin=null;
+const emptyFC=()=>({type:'FeatureCollection',features:[]});
+function drawRadarOverlays(){
+ if(!map.isStyleLoaded())return;
+ const airports={type:'FeatureCollection',features:airportList.map(a=>({type:'Feature',properties:{code:a[0],name:a[1]},geometry:{type:'Point',coordinates:[a[2],a[3]]}}))};
+ if(!map.getSource('aeroscope-airports')){
+   map.addSource('aeroscope-airports',{type:'geojson',data:airports});
+   map.addLayer({id:'aeroscope-airport-dots',type:'circle',source:'aeroscope-airports',minzoom:3,paint:{'circle-radius':['interpolate',['linear'],['zoom'],3,2.5,9,5],'circle-color':'#ffe494','circle-stroke-color':'#172f4d','circle-stroke-width':1.5}});
+   map.addLayer({id:'aeroscope-airport-labels',type:'symbol',source:'aeroscope-airports',minzoom:5,layout:{'text-field':['get','code'],'text-size':11,'text-offset':[0,1.35],'text-optional':true},paint:{'text-color':'#ffffff','text-halo-color':'#10243c','text-halo-width':2}});
+ }
+ const points=recentTracks.get(activeHex)||[];
+ const features=[];
+ if(points.length>1)features.push({type:'Feature',properties:{kind:'observed'},geometry:{type:'LineString',coordinates:points.map(p=>[p[0],p[1]])}});
+ const origin=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.code):null;
+ const last=points.at(-1);
+ if(origin&&last)features.push({type:'Feature',properties:{kind:'reference'},geometry:{type:'LineString',coordinates:[[origin[2],origin[3]],[last[0],last[1]]]}});
+ const data={type:'FeatureCollection',features};
+ if(!map.getSource('aeroscope-traces')){
+  map.addSource('aeroscope-traces',{type:'geojson',data});
+  map.addLayer({id:'aeroscope-origin-reference',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'reference'],paint:{'line-color':'#f6d875','line-width':2,'line-opacity':0.85,'line-dasharray':[2,3]}});
+  map.addLayer({id:'aeroscope-observed-track',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'observed'],paint:{'line-color':'#44e1f7','line-width':3,'line-opacity':0.95}});
+ }else map.getSource('aeroscope-traces').setData(data);
+}
+map.on('style.load',drawRadarOverlays);
+map.on('click','aeroscope-airport-dots',e=>{
+ const f=e.features?.[0];if(!f)return;
+ new maplibregl.Popup({offset:12}).setLngLat(e.lngLat).setText(f.properties.code+' — '+f.properties.name).addTo(map);
+});
+map.on('mouseenter','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='pointer');
+map.on('mouseleave','aeroscope-airport-dots',()=>map.getCanvas().style.cursor='');
+function rememberAircraftPositions(list){
+ for(const a of list){
+  if(!/^[0-9a-f]{6}$/i.test(a.hex||'')||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
+  let pts=recentTracks.get(a.hex);
+  if(!pts){pts=[];recentTracks.set(a.hex,pts)}
+  const last=pts.at(-1);
+  const age=Number(a.seen_pos);
+  if(Number.isFinite(age)&&age>120)continue;
+  if(!last||Math.abs(a.lon-last[0])+Math.abs(a.lat-last[1])>0.0003){
+    if(last&&Math.abs(a.lon-last[0])+Math.abs(a.lat-last[1])>0.6){pts.length=0}
+    pts.push([a.lon,a.lat,Date.now()]);
+    if(pts.length>80)pts.shift();
+  }
+ }
+ if(recentTracks.size>900){for(const k of recentTracks.keys()){if(!list.some(a=>a.hex===k))recentTracks.delete(k);if(recentTracks.size<=600)break}}
+ drawRadarOverlays();
+}
+
 const markers=new Map(),planeSVG='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 1.5c2.5 0 3.6 5 3.8 12.3L30 22v4l-10.2-3.3-.4 8.2 5.1 3.8v2.5L16 35l-8.5 2.2v-2.5l5.1-3.8-.4-8.2L2 26v-4l10.2-8.2C12.4 6.5 13.5 1.5 16 1.5Z" fill="#65c8ff" stroke="#07385d" stroke-width="1.35" stroke-linejoin="round"/><path d="M16 4v27" stroke="#e7f8ff" stroke-width="1.7" stroke-linecap="round"/></svg>';
 function airframeIcon(a){
  const t=String(a.t||'').toUpperCase(),desc=String(a.desc||'').toLowerCase();
@@ -74,12 +134,12 @@ function autoFlightStatus(a,hex){
  autoFlightLookupTimer=setTimeout(()=>{if(activeHex===hex)loadLicensedFlightStatus(a,hex)},650);
 }
 function details(a){
- if(!a)return;const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;
+ if(!a)return;const hex=a.hex||'',call=(a.flight||a.hex||'Unknown').trim();activeHex=hex;verifiedOrigin=null;drawRadarOverlays();
  document.body.classList.add('aircraft-selected');followSelected=true;highlightSelected();if(typeof a.lon==='number'&&typeof a.lat==='number')map.easeTo({center:[a.lon,a.lat],duration:700});setTimeout(()=>map.resize(),80);
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
- +'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
+ +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = approximate connection to verified origin (not a recorded flight path). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
@@ -134,14 +194,14 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
-  note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
+  verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = straight-line reference to verified departure airport, NOT the flown path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
  }catch(err){const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Flight-status lookup failed: '+(err?.message||'Network or browser error')+'.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
 const resultBox=document.getElementById('search-results');
 function searchable(a){const callsign=(a.flight||'').trim().toUpperCase();const airline=airlineFor(a);const codes=Object.entries(airlineIata).filter(([,icao])=>callsign.startsWith(icao)).map(([iata,icao])=>iata+callsign.slice(icao.length));return [callsign,a.r,a.hex,a.t,a.desc,airline,...codes].filter(Boolean).join(' ').toUpperCase()}
 function results(){const q=search.value.trim().toUpperCase();if(!q){resultBox.hidden=true;resultBox.replaceChildren();return}const matches=aircraft.filter(a=>searchable(a).includes(q));resultBox.hidden=false;resultBox.replaceChildren();const heading=document.createElement('p');heading.className='result-note';heading.textContent=matches.length+' matching aircraft currently loaded in this map area';resultBox.appendChild(heading);for(const a of matches.slice(0,30)){const b=document.createElement('button');const call=(a.flight||a.hex||'Unknown').trim();b.textContent=call+' · '+(airlineFor(a)||'Airline unavailable');const sub=document.createElement('span');sub.className='sub';sub.textContent=[a.t,a.r,a.alt_baro==='ground'?'On ground':(typeof a.alt_baro==='number'?a.alt_baro+' ft':'')].filter(Boolean).join(' · ');b.appendChild(sub);b.onclick=()=>{resultBox.hidden=true;search.value='';render();details(a);map.flyTo({center:[a.lon,a.lat],zoom:Math.max(map.getZoom(),9),essential:true});document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'nearest'})};resultBox.appendChild(b)}if(matches.length>30){const n=document.createElement('p');n.className='result-note';n.textContent='Showing first 30 matches. Refine your search for more.';resultBox.appendChild(n)}if(!matches.length){const n=document.createElement('p');n.className='result-note';n.textContent='No match in this regional feed. Search is not a global airline schedule or route database.';resultBox.appendChild(n)}}
 function highlightSelected(){for(const item of markers.values())item.el.classList.toggle('selected-aircraft',Boolean(activeHex&&item.aircraft.hex===activeHex))}
-function closeSelection(){activeHex=null;followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
+function closeSelection(){activeHex=null;verifiedOrigin=null;drawRadarOverlays();followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
 function positionBetween(start,end,t){return [start[0]+(end[0]-start[0])*t,start[1]+(end[1]-start[1])*t]}
 function animateMarker(item,to){
  const from=item.marker.getLngLat(),initial=[from.lng,from.lat],target=[to.lon,to.lat];
@@ -152,7 +212,7 @@ function animateMarker(item,to){
  item.animation=requestAnimationFrame(frame);
 }
 function render(){
- const q=search.value.trim().toUpperCase(),seen=new Set();let count=0;
+ drawRadarOverlays();const q=search.value.trim().toUpperCase(),seen=new Set();let count=0;
  for(const a of aircraft){
   if(q&&!searchable(a).includes(q))continue;
   if(typeof a.lat!=='number'||typeof a.lon!=='number')continue;
@@ -172,7 +232,7 @@ function render(){
 async function load(force=false){
  if(refreshing||document.hidden||(!force && Date.now()-lastRequestedAt<MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
  const c=map.getCenter();status.textContent='Updating aircraft positions…';
- try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(3)+'&lon='+c.lng.toFixed(3),{cache:'no-store'});const data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();render();if(search.value.trim())results()}
+ try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(3)+'&lon='+c.lng.toFixed(3),{cache:'no-store'});const data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();rememberAircraftPositions(aircraft);render();if(search.value.trim())results()}
  catch(e){status.textContent='Live tracking temporarily unavailable: '+e.message+' • Existing positions may be old'}
  finally{refreshing=false}
 }
