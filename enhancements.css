@@ -18,3 +18,32 @@
 .full-flight>.aircraft-photo,.full-flight>.schedule-box,.full-flight>.schedule-links,.full-flight>.atc-accordion,.full-flight>.detail-grid,.full-flight>h3,.full-flight>p{margin-left:12px!important;margin-right:12px!important}
 .full-flight>.schedule-box{padding-top:10px!important}
 @media(max-width:600px){.flight-quick{padding:12px}.flight-route-hero strong{font-size:26px}.flight-key-numbers{gap:6px}.flight-key-numbers strong{font-size:13px}}
+
+/* In-site ATC audio library, flight type labels, and permission controls */
+.atc-library{max-width:1040px;margin:8px auto 20px;line-height:1.5}
+.atc-intro{padding:18px 16px;background:linear-gradient(120deg,#173b58,#0b263e);border-radius:15px;border:1px solid #335876}
+.atc-intro h2{margin:7px 0;font-size:clamp(22px,4vw,32px)}
+.atc-intro p{color:#c2d4e4!important}.atc-eyebrow{font-size:11px;letter-spacing:1.1px;color:#90d4ff;font-weight:800}
+.atc-categories{display:flex;gap:8px;overflow-x:auto;margin:14px 0;padding-bottom:3px}
+.atc-categories button{white-space:nowrap;padding:11px 12px;flex-shrink:0}
+.atc-search{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:12px 0}
+.atc-search label{display:grid;gap:5px;font-size:12px;font-weight:600;color:#b5d7ee}
+.atc-search input{min-width:0;width:100%;padding:12px;border:1px solid #487493;background:#0a2038;color:white;border-radius:10px;font-size:14px}
+.atc-note{font-size:12px!important;color:#b6cee2!important}
+.atc-empty,.atc-clip{border:1px solid #335976;background:#0f2b45;padding:17px;border-radius:14px;margin:10px 0}
+.atc-empty h3,.atc-clip h3{margin:0 0 9px;font-size:17px}
+.atc-empty p,.atc-clip p{font-size:13px;line-height:1.55!important;color:#b5cee1!important}
+.atc-meta,.atc-credit{font-size:11px!important}.atc-play{margin-top:9px}
+.atc-player-box{display:grid;gap:11px;padding:15px;margin:14px 0;border:1px solid #4b7394;border-radius:14px;background:#112c46}
+.atc-player-box audio{width:100%;max-width:100%}.atc-player-box small{color:#a8c6dc;font-size:11px}
+.atc-footer-note{font-size:12px!important;color:#a7bfd3!important;line-height:1.6!important}
+.flight-classification{margin:8px 0 10px;padding:10px 12px;border-radius:10px;border:1px solid #406783;background:#132c43;color:#d4ebff;font-size:12px;line-height:1.45}
+.flight-classification strong{display:block;color:#ffffff;font-size:14px;margin-bottom:2px}
+.flight-classification small{display:block;color:#b0cce1;margin-top:2px}
+.plane[data-aircraft-kind="military"] svg{filter:drop-shadow(0 0 3px #f0be71)}
+.plane[data-aircraft-kind="police"] svg{filter:drop-shadow(0 0 3px #4c8aff)}
+.plane[data-aircraft-kind="fire"] svg{filter:drop-shadow(0 0 3px #ffa263)}
+.plane[data-aircraft-kind="medical"] svg{filter:drop-shadow(0 0 3px #7addb3)}
+.plane[data-aircraft-kind="restricted"] svg{opacity:.75}
+.aero-toast{position:fixed;z-index:10000;bottom:16px;left:50%;transform:translateX(-50%);width:min(92vw,450px);padding:12px 15px;border:1px solid #4e8ab3;border-radius:12px;background:#0e2a44;color:#f3fbff;box-shadow:0 12px 34px #0009;font-size:13px}
+@media(max-width:520px){.atc-search{grid-template-columns:1fr}.atc-categories button{font-size:12px}}
