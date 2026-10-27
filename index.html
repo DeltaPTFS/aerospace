@@ -18,7 +18,7 @@
 const map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:[-73.87,40.77],zoom:7});map.addControl(new maplibregl.NavigationControl(),'bottom-right');
 const regionBar=document.createElement('div');regionBar.style.cssText='display:flex;gap:6px;overflow-x:auto;padding:7px 12px;background:#0d2037';
 const regions=[['USA',-98.5,39.5,3.2],['Northeast',-74.5,41,6],['Southeast',-83,33,5.5],['Midwest',-92,42,5],['South',-98,32,5],['West',-117,39,4.6],['Alaska',-150,63,3.6],['Hawaii',-156.5,20.5,6]];
-for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button');b.textContent=name;b.style.cssText='padding:6px 11px;font-size:12px;white-space:nowrap';b.onclick=()=>{map.jumpTo({center:[lon,lat],zoom});load(true)};regionBar.appendChild(b)}
+for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button');b.textContent=name;b.style.cssText='padding:6px 11px;font-size:12px;white-space:nowrap';b.onclick=()=>{followSelected=false;const fb=panel.querySelector('#follow-plane');if(fb)fb.textContent='○ Follow aircraft';map.jumpTo({center:[lon,lat],zoom});load(true)};regionBar.appendChild(b)}
 document.querySelector('nav').after(regionBar);
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
@@ -312,6 +312,7 @@ async function load(force=false){
  finally{refreshing=false}
 }
 map.on('load',load);map.on('dragstart',()=>{if(followSelected){followSelected=false;const b=panel.querySelector('#follow-plane');if(b)b.textContent='○ Follow aircraft'}});
+map.on('zoomstart',()=>{if(followSelected){followSelected=false;const b=panel.querySelector('#follow-plane');if(b)b.textContent='○ Follow aircraft'}});
 map.on('moveend',()=>{if(followSelected&&activeHex)return;render();clearTimeout(timer);timer=setTimeout(()=>load(true),850)});
 document.getElementById('refresh').onclick=()=>load(true);search.oninput=()=>{render();results()};search.addEventListener('keydown',e=>{if(e.key==='Escape'){search.value='';results();render()}});
 setInterval(()=>{if(document.visibilityState==='visible'&&document.querySelector('[data-tab="radar"]').classList.contains('active'))load()},RADAR_REFRESH_MS);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});
