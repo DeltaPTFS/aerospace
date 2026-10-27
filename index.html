@@ -237,12 +237,18 @@ function animateMarker(item,to){
  item.animation=null;item.marker.setLngLat([to.lon,to.lat]);
 }
 function render(){
- drawRadarOverlays();const q=search.value.trim().toUpperCase(),seen=new Set();let count=0;
- for(const a of aircraft){
-  if(q&&!searchable(a).includes(q))continue;
-  if(typeof a.lat!=='number'||typeof a.lon!=='number')continue;
-  if(count>=(map.getZoom()<6?90:170))continue;
-  const id=a.hex||((a.flight||'').trim()+'-'+a.lat+'-'+a.lon);seen.add(id);count++;
+ drawRadarOverlays();const q=search.value.trim().toUpperCase(),seen=new Set();
+ const bounds=map.getBounds(),center=map.getCenter();
+ const visible=aircraft.filter(a=>Number.isFinite(a.lat)&&Number.isFinite(a.lon)&&bounds.contains([a.lon,a.lat])&&(!q||searchable(a).includes(q)));
+ visible.sort((a,b)=>{
+  if(a.hex===activeHex)return -1;if(b.hex===activeHex)return 1;
+  const da=(a.lon-center.lng)**2*Math.cos(center.lat*Math.PI/180)**2+(a.lat-center.lat)**2;
+  const db=(b.lon-center.lng)**2*Math.cos(center.lat*Math.PI/180)**2+(b.lat-center.lat)**2;
+  return da-db;
+ });
+ const limit=window.innerWidth<750?100:200,display=visible.slice(0,limit);
+ for(const a of display){
+  const id=a.hex||((a.flight||'').trim()+'-'+a.lat+'-'+a.lon);seen.add(id);
   let item=markers.get(id);
   if(!item){
    const el=document.createElement('div');el.className='plane';const shape=airframeIcon(a);el.innerHTML=shape.svg;el.style.setProperty('--plane-icon-width',shape.size+'px');el.style.setProperty('--plane-icon-height',Math.round(shape.size*1.24)+'px');el.title=a.flight||a.r||a.hex||'Aircraft';el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Details for '+el.title);
@@ -252,17 +258,19 @@ function render(){
   }else{item.aircraft=a;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
  }
  for(const [id,item] of markers){if(!seen.has(id)){if(item.animation)cancelAnimationFrame(item.animation);item.marker.remove();markers.delete(id)}}
- if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&typeof current.lon==='number')map.easeTo({center:[current.lon,current.lat],duration:350,essential:true});else if(!current){followSelected=false}}highlightSelected();
- status.textContent='Regional aircraft displayed: '+count+' / '+aircraft.length+' • Last update '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString(): 'pending')+' • Auto-refresh about every 20s (provider permitting)';
+ if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&Number.isFinite(current.lon))map.easeTo({center:[current.lon,current.lat],duration:350,essential:true});else if(!current){followSelected=false}}
+ highlightSelected();
+ status.textContent='Aircraft visible: '+display.length+' / '+visible.length+' nearby • Feed: '+aircraft.length+' • Updated '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString():'pending')+' • Refresh ~20s';
 }
 async function load(force=false){
- if(refreshing||document.hidden||(!force && Date.now()-lastRequestedAt<MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
+ if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
  const c=map.getCenter();status.textContent='Updating aircraft positions…';
  try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(3)+'&lon='+c.lng.toFixed(3),{cache:'no-store'});const data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();rememberAircraftPositions(aircraft);render();if(search.value.trim())results()}
  catch(e){status.textContent='Live tracking temporarily unavailable: '+e.message+' • Existing positions may be old'}
  finally{refreshing=false}
 }
-map.on('load',load);map.on('moveend',()=>{if(followSelected&&activeHex)return;clearTimeout(timer);timer=setTimeout(()=>load(),1200)});
+map.on('load',load);map.on('dragstart',()=>{if(followSelected){followSelected=false;const b=panel.querySelector('#follow-plane');if(b)b.textContent='○ Follow aircraft'}});
+map.on('moveend',()=>{if(followSelected&&activeHex)return;render();clearTimeout(timer);timer=setTimeout(()=>load(true),850)});
 document.getElementById('refresh').onclick=()=>load(true);search.oninput=()=>{render();results()};search.addEventListener('keydown',e=>{if(e.key==='Escape'){search.value='';results();render()}});
 setInterval(()=>{if(document.visibilityState==='visible'&&document.querySelector('[data-tab="radar"]').classList.contains('active'))load()},RADAR_REFRESH_MS);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});
 document.querySelectorAll('[data-tab]').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b===btn));let tab=btn.dataset.tab;document.getElementById('map').style.display=tab==='radar'?'block':'none';panel.style.display=tab==='radar'?'block':'none';let o=document.getElementById('other');o.style.display=tab==='radar'?'none':'block';if(tab==='atc')o.innerHTML='<h2>ATC Lab</h2><p>Training sample only — not live ATC.</p><button onclick="speechSynthesis.speak(new SpeechSynthesisUtterance(\'AeroScope 123, cleared for takeoff runway two two left\'))">▶ Play simulated ATC</button>';if(tab==='cams')o.innerHTML='<h2>Airport cameras</h2><p>Watch publicly available airport views through their original broadcasters. These camera feeds are external and may be offline or delayed; they are not synchronized to AeroScope aircraft positions.</p><div class="camera-links"><a href="https://www.flightradar24.com/blog/airport-live-streams/" target="_blank" rel="noopener noreferrer">Live airport cameras — LaGuardia, Las Vegas, Heathrow, and more ↗</a><a href="https://overlookcams.com/cam/laguardia-airport-new-york/" target="_blank" rel="noopener noreferrer">New York LaGuardia (LGA) airport live camera ↗</a><a href="https://cam.airlive.net/" target="_blank" rel="noopener noreferrer">JFK airport cameras and worldwide airport views ↗</a><a href="https://airportwebcams.net/" target="_blank" rel="noopener noreferrer">World airport webcam directory ↗</a></div><p><small>Cameras are not operated by AeroScope ONE. Camera operators own their footage; some may require subscriptions or permission for reuse. We link to their original sites instead of rebroadcasting video.</small></p>';if(tab==='window')o.innerHTML='<h2>Passenger Window</h2><p>Simulated sky — not a live exterior camera.</p><div style="height:50vh;border:16px solid #c8d7e2;border-radius:45%;background:linear-gradient(#1d71c0,#a6dfff 68%,#e8f5ff);position:relative;overflow:hidden"><div style="position:absolute;bottom:20%;left:20%;width:90%;height:18px;background:#e6edf4;transform:rotate(-15deg);border-radius:80% 0"></div></div>';if(tab==='sim')o.innerHTML='<h2>Simulation Lab</h2><p>Try a flight heading exercise.</p><label>Heading <input id="h" type="range" min="0" max="359" value="90" oninput="document.getElementById(\'heading\').textContent=this.value+\'°\'"></label><p>Selected heading: <strong id="heading">90°</strong></p>';if(tab==='radar'){map.resize()}});
