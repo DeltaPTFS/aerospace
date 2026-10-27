@@ -50,6 +50,19 @@ export default async function handler(req,res){
  if(!isHex(hex))return res.status(400).json({available:false,reason:'Valid aircraft ICAO hex required'});
  const key=process.env.FLYITALYADSB_API_KEY;
  if(!key)return res.status(200).json({available:false,configured:false,reason:'Historical trace provider not connected; showing positions observed by AeroScope instead.'});
+ // Respect privacy protections: do not redistribute historical paths for PIA/LADD identities.
+ // A provider profile is used instead of guessing privacy status from missing fields.
+ try{
+  const privacyController=new AbortController();
+  const privacyTimer=setTimeout(()=>privacyController.abort(),5500);
+  let pr;
+  try{pr=await fetch('https://api.flyitalyadsb.com/v2/profile/'+encodeURIComponent(hex),{signal:privacyController.signal,headers:{'X-Api-Key':key,Accept:'application/json'}})}
+  finally{clearTimeout(privacyTimer)}
+  if(!pr.ok)return res.status(200).json({available:false,configured:true,reason:'Aircraft privacy status could not be verified; historical playback withheld.'});
+  const profile=await pr.json(),identity=profile?.identity||{};
+  const flags=Number(identity.dbFlags)||0;
+  if((flags&12)||identity.pia===true||identity.ladd===true)return res.status(200).json({available:false,configured:true,restricted:true,reason:((flags&8)||identity.ladd===true)?'Historical trace restricted: FAA LADD privacy flag':'Historical trace restricted: privacy ICAO address (PIA)'});
+ }catch{return res.status(200).json({available:false,configured:true,reason:'Aircraft privacy verification unavailable; historical trace withheld.'})}
  const cacheKey=hex+'|'+call;
  const cached=cache.get(cacheKey);
  if(cached&&Date.now()-cached.at<10*60000)return res.status(200).json(cached.result);
