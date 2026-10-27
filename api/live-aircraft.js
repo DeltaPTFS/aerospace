@@ -23,6 +23,9 @@ export default async function handler(req,res){
   const take=v=>Number.isFinite(v)?v:null;
   const result={available:true,source:'FlyItalyADSB',attribution:'Live aircraft data © FlyItalyADSB (CC BY-SA 4.0)',aircraft:{
    hex,dbFlags:Number.isFinite(a.dbFlags)?a.dbFlags:0,
+   ownOp:typeof a.ownOp==='string'?a.ownOp.slice(0,100):null,
+   desc:typeof a.desc==='string'?a.desc.slice(0,100):null,
+   emergency:typeof a.emergency==='string'?a.emergency.slice(0,30):null,
    flight:typeof a.flight==='string'?a.flight.trim().slice(0,15):null,
    r:typeof a.r==='string'?a.r.slice(0,20):null,
    t:typeof a.t==='string'?a.t.slice(0,12):null,
