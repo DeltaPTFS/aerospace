@@ -47,3 +47,16 @@
 .plane[data-aircraft-kind="restricted"] svg{opacity:.75}
 .aero-toast{position:fixed;z-index:10000;bottom:16px;left:50%;transform:translateX(-50%);width:min(92vw,450px);padding:12px 15px;border:1px solid #4e8ab3;border-radius:12px;background:#0e2a44;color:#f3fbff;box-shadow:0 12px 34px #0009;font-size:13px}
 @media(max-width:520px){.atc-search{grid-template-columns:1fr}.atc-categories button{font-size:12px}}
+
+/* Airport ATIS / digital weather information in the ATC library */
+.atc-atis-panel{display:grid;gap:12px;margin:12px 0;padding:17px;border-radius:14px;border:1px solid #3e6a86;background:linear-gradient(125deg,#112d47,#102439)}
+.atc-atis-panel h3,.atc-atis-panel h4{margin:0;color:#e4f5ff}
+.atc-atis-panel>p{margin:0;color:#b7d2e5;line-height:1.55;font-size:13px}
+.atc-atis-search{display:flex;flex-wrap:wrap;gap:9px}
+.atc-atis-search input{min-width:140px;flex:1;border:1px solid #477493;background:#0b2036;color:#fff;padding:11px 12px;border-radius:9px;font-size:14px;text-transform:uppercase}
+.atc-atis-result{display:grid;gap:10px;overflow-wrap:anywhere;font-size:13px}
+.atc-atis-result p{margin:0;color:#c4dcec;font-size:13px;line-height:1.5}
+.atc-atis-message{padding:10px;background:#0b2036;border:1px solid #274e6c;border-radius:9px;white-space:pre-wrap;overflow-wrap:anywhere}
+.atc-atis-message strong{display:block;color:#8fdaff;margin-bottom:7px}
+.atc-atis-credit{font-size:12px;color:#99d9ff;width:max-content}
+@media(max-width:530px){.atc-atis-search>*{width:100%}}
