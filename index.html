@@ -16,9 +16,13 @@
 @media(prefers-reduced-motion:reduce){.selected-aircraft::after{animation:none}}
 .camera-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}.camera-links a{display:block;padding:18px;background:#163656;border:1px solid #49769a;border-radius:12px;text-decoration:none;color:#b4e4ff}.schedule-links a{color:#8ed5ff;font-size:13px}.schedule-links{margin:8px 0 12px}.schedule-box{border:0!important;background:transparent!important;padding:4px 0!important}.schedule-box .detail-grid{gap:0!important;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #284461}.schedule-box .detail-row{background:transparent!important;border-radius:0!important;padding:13px 12px!important;border-bottom:1px solid #284461;min-height:64px}.schedule-box .detail-row:nth-child(odd){border-right:1px solid #284461}.schedule-box h3{border-bottom:1px solid #284461;padding-bottom:12px}.detail-row:not(.schedule-box .detail-row){border-radius:10px}.data-disclaimer{padding:10px 3px}.aircraft-photo{border-radius:14px}.schedule-links button{border-radius:20px}#route-note{max-width:55ch;line-height:1.5}</style><link rel="stylesheet" href="/enhancements.css"></head><body><header><div class="brand"><span class="aero-wordmark"><svg class="aero-symbol" viewBox="0 0 102 76" role="img" aria-label="AeroScope logo"><path d="M9 70 40 6 Q43 1 47 6 L78 70 H60 L44 32 27 70Z" fill="#75bdff"/><path d="M4 58 C27 66 60 51 91 24" fill="none" stroke="#e7f7ff" stroke-width="6" stroke-linecap="round"/><path d="M77 21 95 9 89 29 83 23 75 29Z" fill="#75bdff"/></svg><span class="aero-word">eroScope</span><span class="aero-one">ONE<sup>™</sup></span></span><span class="aero-version" aria-label="Version 0.5">v0.5</span></div><div class="headright"><small>Live regional radar • Beta</small><a class="signin" href="/profile">My Account</a></div></header><nav><button class="active" data-tab="radar">Flight Radar</button><button data-tab="atc">ATC Lab</button><button data-tab="cams">Airport Cameras</button><button data-tab="window">Window View</button><button data-tab="sim">Simulation</button></nav><div id="status">Loading map…</div><main id="map"><div id="toolbar"><input id="search" placeholder="Search callsign, flight, airline…" aria-label="Search aircraft and airlines" autocomplete="off"><button id="refresh">↻ Refresh</button><div id="search-results" role="region" aria-label="Flight search results" hidden></div></div></main><div id="panel"><b>Tap a plane to inspect it.</b><p>Move the map to load nearby aircraft. Flight positions depend on public receiver coverage.</p></div><section id="other"></section><script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script><script>
 const map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:[-73.87,40.77],zoom:7});map.addControl(new maplibregl.NavigationControl(),'bottom-right');
+const regionBar=document.createElement('div');regionBar.style.cssText='display:flex;gap:6px;overflow-x:auto;padding:7px 12px;background:#0d2037';
+const regions=[['USA',-98.5,39.5,3.2],['Northeast',-74.5,41,6],['Southeast',-83,33,5.5],['Midwest',-92,42,5],['South',-98,32,5],['West',-117,39,4.6],['Alaska',-150,63,3.6],['Hawaii',-156.5,20.5,6]];
+for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button');b.textContent=name;b.style.cssText='padding:6px 11px;font-size:12px;white-space:nowrap';b.onclick=()=>{map.jumpTo({center:[lon,lat],zoom});load(true)};regionBar.appendChild(b)}
+document.querySelector('nav').after(regionBar);
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
-const RADAR_REFRESH_MS=12000,MIN_REFRESH_MS=8500;
+const RADAR_REFRESH_MS=20000,MIN_REFRESH_MS=16000;
 
 const airportList=[
  ['JFK','John F. Kennedy International',-73.7781,40.6413],['LGA','LaGuardia',-73.874,40.7769],['EWR','Newark Liberty',-74.1745,40.6895],['TEB','Teterboro',-74.0608,40.8501],['HPN','Westchester County',-73.7076,41.067],['ISP','Long Island MacArthur',-73.1002,40.7953],['SWF','New York Stewart',-74.1048,41.5041],
@@ -52,12 +56,15 @@ function drawRadarOverlays(){
  if(segment.length>1)segments.push(segment);
  for(const part of segments)features.push({type:'Feature',properties:{kind:'observed'},geometry:{type:'LineString',coordinates:part.map(p=>[p[0],p[1]])}});
  const origin=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.code):null;
+ const destination=verifiedOrigin&&verifiedOrigin.hex===activeHex?airportsByCode.get(verifiedOrigin.destination):null;
  const last=points.at(-1);
  if(origin&&last)features.push({type:'Feature',properties:{kind:'reference'},geometry:{type:'LineString',coordinates:[[origin[2],origin[3]],[last[0],last[1]]]}});
+ if(destination&&last)features.push({type:'Feature',properties:{kind:'destination'},geometry:{type:'LineString',coordinates:[[last[0],last[1]],[destination[2],destination[3]]]}});
  const data={type:'FeatureCollection',features};
  if(!map.getSource('aeroscope-traces')){
   map.addSource('aeroscope-traces',{type:'geojson',data});
   map.addLayer({id:'aeroscope-origin-reference',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'reference'],paint:{'line-color':'#f6d875','line-width':2,'line-opacity':0.85,'line-dasharray':[2,3]}});
+  map.addLayer({id:'aeroscope-destination',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'destination'],paint:{'line-color':'#f4a64f','line-width':2.5,'line-opacity':.85,'line-dasharray':[2,2]}});
   map.addLayer({id:'aeroscope-observed-track',type:'line',source:'aeroscope-traces',filter:['==',['get','kind'],'observed'],paint:{'line-color':'#44e1f7','line-width':3,'line-opacity':0.95}});
  }else map.getSource('aeroscope-traces').setData(data);
 }
@@ -151,7 +158,7 @@ function details(a){
  const alt=a.alt_baro==='ground'?'On ground':a.alt_baro;
  const statusLabel=a.alt_baro==='ground'?'Reported on ground':typeof a.alt_baro==='number'?'Reported airborne':'Status unknown';
  panel.innerHTML='<div class="tracking-tools"><button id="follow-plane" type="button">● Following aircraft</button><button id="close-plane" type="button">✕ Close</button></div><div class="flight-detail-head"><h2>Flight '+text(call)+'</h2><div class="flight-status">'+text(statusLabel)+'</div></div>'
- +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = approximate connection to verified origin (not a recorded flight path). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
+ +'<p style="font-size:12px;color:#b8d6e9">Map tracks: cyan = positions observed during this session; dashed gold = origin; dashed orange = destination (straight-line references, not actual flight routes). Airport pins = selected major airports.</p>'+'<div id="aircraft-photo" class="aircraft-photo">Looking up aircraft imagery…</div>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
  +info('Departure airport','Unverified')+info('Arrival airport','Unverified')
  +info('Scheduled departure','Not available')+info('Actual departure','Not available')
@@ -206,7 +213,7 @@ async function loadLicensedFlightStatus(a,hex){
   +info('Actual arrival',fmt(d.actualArrival,d.destination?.timeZone))+info('Departure gate',gate(d.gateOrigin))+info('Arrival gate',gate(d.gateDestination))
   +info('Departure delay',delay(d.scheduledDeparture,d.actualDeparture))+info('Arrival delay',delay(d.scheduledArrival,d.actualArrival))
   +info('Flight status',d.status||'Not reported');
-  verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = straight-line reference to verified departure airport, NOT the flown path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
+  verifiedOrigin={hex,code:String(d.origin?.code||'').toUpperCase(),destination:String(d.destination?.code||'').toUpperCase()};drawRadarOverlays();note.textContent=d.note+' Checked '+fmt(d.checkedAt,'UTC')+'. '+d.attribution+'. Map: solid cyan = observed positions since opening this page; dashed gold = origin reference; dashed orange = straight-line reference to verified destination. Neither is an actual or predicted flight path.';if(hint)hint.textContent='Verified record found • '+d.attribution;button.disabled=false;
  }catch(err){const hint=panel.querySelector('#lookup-status-hint');if(hint)hint.textContent='Flight-status lookup failed: '+(err?.message||'Network or browser error')+'.';const btn=panel.querySelector('#lookup-flight-status');if(btn)btn.disabled=false;}
 }
 const resultBox=document.getElementById('search-results');
@@ -216,18 +223,16 @@ function highlightSelected(){for(const item of markers.values())item.el.classLis
 function closeSelection(){activeHex=null;verifiedOrigin=null;drawRadarOverlays();followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
 function positionBetween(start,end,t){return [start[0]+(end[0]-start[0])*t,start[1]+(end[1]-start[1])*t]}
 function animateMarker(item,to){
- const from=item.marker.getLngLat(),initial=[from.lng,from.lat],target=[to.lon,to.lat];
+ // Render the most recent reported coordinates immediately, not a constantly running interpolation.
  if(item.animation)cancelAnimationFrame(item.animation);
- if(Math.abs(target[0]-initial[0])>1||Math.abs(target[1]-initial[1])>1){item.marker.setLngLat(target);return}
- const began=performance.now(),duration=10500;
- function frame(now){if(!document.contains(item.el))return;const t=Math.min((now-began)/duration,1);item.marker.setLngLat(positionBetween(initial,target,t));if(t<1)item.animation=requestAnimationFrame(frame)}
- item.animation=requestAnimationFrame(frame);
+ item.animation=null;item.marker.setLngLat([to.lon,to.lat]);
 }
 function render(){
  drawRadarOverlays();const q=search.value.trim().toUpperCase(),seen=new Set();let count=0;
  for(const a of aircraft){
   if(q&&!searchable(a).includes(q))continue;
   if(typeof a.lat!=='number'||typeof a.lon!=='number')continue;
+  if(count>=(map.getZoom()<6?90:170))continue;
   const id=a.hex||((a.flight||'').trim()+'-'+a.lat+'-'+a.lon);seen.add(id);count++;
   let item=markers.get(id);
   if(!item){
@@ -238,8 +243,8 @@ function render(){
   }else{item.aircraft=a;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
  }
  for(const [id,item] of markers){if(!seen.has(id)){if(item.animation)cancelAnimationFrame(item.animation);item.marker.remove();markers.delete(id)}}
- if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&typeof current.lon==='number')map.easeTo({center:[current.lon,current.lat],duration:11000,essential:true});else if(!current){followSelected=false}}highlightSelected();
- status.textContent='Nearby reported aircraft: '+count+' / '+aircraft.length+' • Last update '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString(): 'pending')+' • Auto-refresh about every 12s (provider permitting)';
+ if(activeHex){const current=aircraft.find(a=>a.hex===activeHex);if(current&&followSelected&&typeof current.lon==='number')map.easeTo({center:[current.lon,current.lat],duration:350,essential:true});else if(!current){followSelected=false}}highlightSelected();
+ status.textContent='Regional aircraft displayed: '+count+' / '+aircraft.length+' • Last update '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString(): 'pending')+' • Auto-refresh about every 20s (provider permitting)';
 }
 async function load(force=false){
  if(refreshing||document.hidden||(!force && Date.now()-lastRequestedAt<MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
