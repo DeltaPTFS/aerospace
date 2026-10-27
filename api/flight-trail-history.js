@@ -53,23 +53,31 @@ export default async function handler(req,res){
  const cacheKey=hex+'|'+call;
  const cached=cache.get(cacheKey);
  if(cached&&Date.now()-cached.at<10*60000)return res.status(200).json(cached.result);
- const date=new Date().toISOString().slice(0,10);
+ const today=new Date(),dates=[today.toISOString().slice(0,10),new Date(today.getTime()-86400000).toISOString().slice(0,10)];
  const controller=new AbortController();
- const timeout=setTimeout(()=>controller.abort(),9000);
+ const timeout=setTimeout(()=>controller.abort(),12000);
  try{
-  const u='https://api.flyitalyadsb.com/v2/history/'+encodeURIComponent(hex)+'/'+date;
-  const response=await fetch(u,{signal:controller.signal,headers:{'X-Api-Key':key,'Accept':'application/json'}});
-  if(response.status===404||response.status===204)return res.status(200).json({available:false,configured:true,reason:'No provider history reported for this aircraft today.'});
-  if(!response.ok)return res.status(200).json({available:false,configured:true,reason:'Historical trace provider returned HTTP '+response.status});
-  const raw=await response.json();
-  if(raw.icao&&String(raw.icao).toLowerCase()!==hex)return res.status(200).json({available:false,configured:true,reason:'History aircraft identity did not match.'});
-  const all=parseDay(raw).sort((a,b)=>a.ts-b.ts);
+  const tracks=[];
+  let lastFailure=null,foundAny=false;
+  for(const date of [...dates].reverse()){
+   const u='https://api.flyitalyadsb.com/v2/history/'+encodeURIComponent(hex)+'/'+date;
+   const response=await fetch(u,{signal:controller.signal,headers:{'X-Api-Key':key,'Accept':'application/json'}});
+   if(response.status===404||response.status===204)continue;
+   if(!response.ok){lastFailure=response.status;continue}
+   const raw=await response.json();
+   if(raw.icao&&String(raw.icao).toLowerCase()!==hex)continue;
+   foundAny=true;
+   const day=parseDay(raw);
+   for(const point of day)if(point.ts<=Date.now()+300000)tracks.push(point);
+  }
+  if(!foundAny)return res.status(200).json({available:false,configured:true,reason:lastFailure?'Historical provider returned HTTP '+lastFailure:'No provider history reported for this aircraft on either of the past two UTC dates.'});
+  const all=tracks.sort((a,b)=>a.ts-b.ts);
   const flight=lastFlight(all,call);
   if(flight.length<2)return res.status(200).json({available:false,configured:true,reason:'Not enough independently matching track points for this flight.'});
   const latest=flight.at(-1).ts;
   if(latest>Date.now()+300000||Date.now()-latest>4*3600000)return res.status(200).json({available:false,configured:true,reason:'Trace is not recent enough to safely match the currently selected flight.'});
   const selected=simplify(flight);
-  const result={available:true,configured:true,provider:'FlyItalyADSB',attribution:'FlyItalyADSB (flyitalyadsb.com) · ADS-B/MLAT data · CC BY-SA 4.0',pointCount:flight.length,points:selected.map(p=>[p.lon,p.lat,p.ts]),date,note:'Past observed positions for the latest matching flight leg; missing receiver coverage may leave gaps.'};
+  const result={available:true,configured:true,provider:'FlyItalyADSB',attribution:'FlyItalyADSB (flyitalyadsb.com) · ADS-B/MLAT data · CC BY-SA 4.0',pointCount:flight.length,points:selected.map(p=>[p.lon,p.lat,p.ts]),dates,note:'Past observed positions for the latest matching flight leg; missing receiver coverage may leave gaps.'};
   if(cache.size>125)cache.clear();
   cache.set(cacheKey,{at:Date.now(),result});
   return res.status(200).json(result);
