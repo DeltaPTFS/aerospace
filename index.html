@@ -22,6 +22,7 @@ for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button
 document.querySelector('nav').after(regionBar);
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
+window.AeroScopeSelectedHex=()=>activeHex;
 const RADAR_REFRESH_MS=20000,MIN_REFRESH_MS=16000; // Region stays economical; selected aircraft polls independently at 5s.
 
 const airportList=[
