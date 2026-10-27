@@ -9,9 +9,40 @@ function applyStyle(){const center=map.getCenter(),zoom=map.getZoom(),bearing=ma
 mapButton.onclick=()=>{satellite=!satellite;applyStyle();};
 // Keep the lightweight vector basemap by default, especially on phones.
 const info=document.createElement('div');info.className='flight-note';info.textContent='AERIAL / SATELLITE • Esri World Imagery and contributors. Historical imagery, not live; tile coverage and image dates vary.';document.getElementById('map').appendChild(info);
-const oldNav=document.querySelector('nav');const locate=document.createElement('button');locate.textContent='⌖ Locate Me';locate.title='Mark your location on the map (only if you grant permission)';let userMarker=null;locate.onclick=()=>{if(!navigator.geolocation){alert('Location unavailable');return}locate.disabled=true;locate.textContent='Locating…';navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.longitude,p.coords.latitude];if(userMarker)userMarker.remove();const el=document.createElement('div');el.style.cssText='width:17px;height:17px;border-radius:50%;background:#197af5;border:3px solid white;box-shadow:0 0 0 7px #197af53f,0 2px 7px #0015';userMarker=new maplibregl.Marker({element:el}).setLngLat(ll).setPopup(new maplibregl.Popup().setText('Your approximate location — visible only in your browser')).addTo(map);map.flyTo({center:ll,zoom:9});locate.disabled=false;locate.textContent='⌖ Locate Me';},()=>{locate.disabled=false;locate.textContent='⌖ Locate Me';alert('Location permission not granted or unavailable')},{enableHighAccuracy:false,timeout:9000,maximumAge:120000})};oldNav.appendChild(locate);
-const originalClickHandlers={};
-document.querySelector('[data-tab="atc"]').addEventListener('click',()=>{setTimeout(()=>{const o=document.getElementById('other');o.innerHTML='<h2>🎧 ATC Radio Directory</h2><p>Listen to authorized ATC feeds on their original websites. AeroScope does not retransmit or record their audio.</p><p><a href="https://www.liveatc.net/" target="_blank" rel="noopener noreferrer">Open LiveATC.net ↗</a></p><p><a href="https://www.liveatc.net/search/" target="_blank" rel="noopener noreferrer">Search ATC frequencies ↗</a></p><p><a href="https://www.liveatc.net/archive.php" target="_blank" rel="noopener noreferrer">Browse available ATC archives ↗</a></p><small>Coverage and access vary by airport; some countries restrict ATC monitoring. Links are external.</small>';},0);});
+const oldNav=document.querySelector('nav');
+const locate=document.createElement('button');
+locate.textContent='⌖ Locate Me';locate.title='Ask once for location and show a temporary dot only on this map';
+const clearLoc=document.createElement('button');
+clearLoc.textContent='✕ Clear Location';clearLoc.hidden=true;
+let userMarker=null;
+const locationMessage=(msg)=>{const status=document.getElementById('status');if(status)status.textContent=msg};
+clearLoc.onclick=()=>{
+ if(userMarker){userMarker.remove();userMarker=null}
+ clearLoc.hidden=true;locate.textContent='⌖ Locate Me';locationMessage('Location marker removed from this page. No coordinates were saved by AeroScope.');
+};
+locate.onclick=()=>{
+ if(!navigator.geolocation){locationMessage('Geolocation is not available in this browser');return}
+ locate.disabled=true;locate.textContent='Getting location…';
+ navigator.geolocation.getCurrentPosition(
+  p=>{
+   const coords=[p.coords.longitude,p.coords.latitude];
+   if(userMarker)userMarker.remove();
+   const marker=document.createElement('div');
+   marker.style.cssText='width:17px;height:17px;border-radius:50%;background:#197af5;border:3px solid white;box-shadow:0 0 0 7px #197af544,0 2px 8px #0018';
+   userMarker=new maplibregl.Marker({element:marker}).setLngLat(coords).setPopup(new maplibregl.Popup().setText('You are here (browser estimate ±'+Math.round(p.coords.accuracy||0)+' m). Your precise coordinates are not stored by AeroScope.')).addTo(map);
+   map.flyTo({center:coords,zoom:12});
+   locate.disabled=false;locate.textContent='⌖ Update My Location';clearLoc.hidden=false;
+   locationMessage('Location dot placed on your map only • accuracy ±'+Math.round(p.coords.accuracy||0)+' m • tap Clear Location to remove it');
+  },
+  e=>{
+   locate.disabled=false;locate.textContent='⌖ Locate Me';
+   locationMessage(e?.code===1?'Location permission declined. Radar remains usable without location.':'Could not determine a location. Please try again.');
+  },
+  {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+ );
+};
+oldNav.appendChild(locate);oldNav.appendChild(clearLoc);
+// No location is sent to an account, stored, or watched in the background.
 document.querySelector('[data-tab="window"]').addEventListener('click',()=>{setTimeout(()=>{const o=document.getElementById('other');o.innerHTML='<h2>🪟 Passenger Window Simulator</h2><p>Animated artistic simulation — not a real plane camera or flight-position renderer.</p><div class="window-controls"><button id="daymode" class="active">Day</button><button id="nightmode">Night</button><button id="cloudmode">Cloudy</button></div><div id="sky-view" class="sky day"><div class="sun"></div><div class="cloud cloud1"></div><div class="cloud cloud2"></div><div class="wing"></div></div><small>Window simulation moves independently of aircraft tracking.</small>';o.querySelector('#daymode').onclick=()=>setSky('day');o.querySelector('#nightmode').onclick=()=>setSky('night');o.querySelector('#cloudmode').onclick=()=>setSky('cloudy');function setSky(v){o.querySelector('#sky-view').className='sky '+v;o.querySelectorAll('.window-controls button').forEach(b=>b.classList.toggle('active',b.id===v+'mode'));}},0)});
 document.querySelector('[data-tab="sim"]').addEventListener('click',()=>{setTimeout(()=>{const o=document.getElementById('other');const p=document.createElement('p');p.innerHTML='Practice target heading <b>270°</b> (west). Move the slider until you reach it.';o.appendChild(p);const b=document.createElement('button');b.textContent='Check heading';b.onclick=()=>{const v=Number(document.getElementById('h')?.value);alert(Math.abs(v-270)<=5?'Great job — on heading!':'Try again: west is 270 degrees.')};o.appendChild(b)},0)});
 })();
