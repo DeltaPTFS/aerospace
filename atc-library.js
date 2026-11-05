@@ -105,6 +105,25 @@ async function showATC(root){
  const box=el('section','atc-library');
  box.innerHTML='<div class="atc-intro"><span class="atc-eyebrow">AEROSCOPE ONE™ AUDIO</span><h2>ATC Recordings</h2><p>Listen to rights-cleared aviation radio recordings without leaving AeroScope. We never replay third-party feeds without permission.</p></div><div class="atc-categories"><button type="button" data-category="free" class="active">🎧 Free ATC</button><button type="button" data-category="emergencies">🚨 Emergency Archive</button><button type="button" data-category="atis">☁ Airport ATIS</button><button type="button" data-category="premium">🔒 Aircraft Premium</button></div><div class="atc-search"><label>Flight callsign<input id="atc-callsign" placeholder="e.g. DAL123" autocomplete="off"></label><label>Airport code<input id="atc-airport-filter" placeholder="e.g. KJFK" autocomplete="off"></label></div><p id="atc-library-note" class="atc-note">Checking licensed recording catalog…</p><div id="atc-recordings-list"></div><div class="atc-player-box"><strong id="atc-now-playing">No recording selected</strong><audio id="atc-player" controls preload="none" hidden></audio><small>All available recordings play inside AeroScope. This archive is not a live radio service.</small></div><p class="atc-footer-note">Airport radio can include many aircraft. A recording is assigned to a specific flight only after callsign, time, and source verification. Emergency labels must also be independently confirmed.</p>';
  root.append(box);
+ // An optional locally generated example, clearly distinct from any real ATC recording.
+ const training=el('section','atc-training');
+ training.append(el('h3','','ATC Phraseology Training — Simulated'));
+ training.append(el('p','','Practice what aviation radio sounds like. The following voice is computer-generated, NOT a recording of an actual flight or emergency.'));
+ const script='AeroScope training flight one two three, wind two seven zero at eight knots, runway two two left, cleared for takeoff.';
+ training.append(el('p','atc-demo-script',script));
+ const play=el('button','','▶ Play training example');play.type='button';
+ play.onclick=()=>{
+  if(!('speechSynthesis' in window)){play.textContent='Speech playback is not supported by this browser';return}
+  speechSynthesis.cancel();
+  const utterance=new SpeechSynthesisUtterance(script);utterance.lang='en-US';utterance.rate=.88;utterance.pitch=.94;
+  play.textContent='Playing simulated training audio…';
+  utterance.onend=()=>{play.textContent='▶ Play training example'};
+  utterance.onerror=()=>{play.textContent='▶ Play training example'};
+  speechSynthesis.speak(utterance);
+ };
+ training.append(play);
+ const playerBox=box.querySelector('.atc-player-box');
+ if(playerBox)playerBox.before(training);
  box.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{active=b.dataset.category;renderList(box)});
  box.querySelector('#atc-callsign').oninput=e=>{filters.callsign=clean(e.target.value);renderList(box)};
  box.querySelector('#atc-airport-filter').oninput=e=>{filters.airport=clean(e.target.value);renderList(box)};
