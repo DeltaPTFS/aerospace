@@ -479,8 +479,8 @@ function startFocusedTracking(hex){
        if(fresh&&Number.isFinite(existing.lat)&&Number.isFinite(existing.lon)){
         rememberAircraftPositions([existing]);
         const marker=markers.get(requestedHex);
-        if(marker){marker.aircraft=existing;marker.el.dataset.aircraftKind=classifyAircraft(existing).kind;marker.marker.setLngLat([existing.lon,existing.lat]);marker.marker.setRotation(Number(existing.track)||0)}
-        if(followSelected)map.easeTo({center:[existing.lon,existing.lat],duration:220,essential:true});
+        if(marker){marker.aircraft=existing;marker.lastReportAt=Date.now();marker.el.dataset.aircraftKind=classifyAircraft(existing).kind;if(!smoothMotionEnabled)marker.marker.setLngLat([existing.lon,existing.lat]);marker.marker.setRotation(Number(existing.track)||0)}
+        if(followSelected&&Date.now()-lastFollowCenterAt>4000){lastFollowCenterAt=Date.now();map.easeTo({center:[existing.lon,existing.lat],duration:280,essential:true})}
        }
       }
       const age=Number.isFinite(p.seen_pos)?' • position age '+p.seen_pos.toFixed(1)+'s':'';
@@ -502,12 +502,67 @@ function startFocusedTracking(hex){
  void poll();
 }
 function closeSelection(){stopFocusedTracking();activeHex=null;verifiedOrigin=null;drawRadarOverlays();followSelected=false;document.body.classList.remove('aircraft-selected');highlightSelected();panel.innerHTML='<b>Tap a plane to inspect it.</b><p>Select a flight to follow its position and view details.</p>';map.resize()}
-function positionBetween(start,end,t){return [start[0]+(end[0]-start[0])*t,start[1]+(end[1]-start[1])*t]}
-function animateMarker(item,to){
- // Render the most recent reported coordinates immediately, not a constantly running interpolation.
- if(item.animation)cancelAnimationFrame(item.animation);
- item.animation=null;item.marker.setLngLat([to.lon,to.lat]);
+// Efficient visual dead-reckoning. Marker-only display prediction; never feeds trail logs or aircraft facts.
+// Max 4 updates/second for background aircraft, max 6 for the selected aircraft.
+// Prediction stops 12s after a genuine position report. No prediction on the ground or stale inputs.
+const SMOOTH_MOTION_MAX_MS=12000,SMOOTH_MOTION_TICK_MS=250;
+let smoothMotionEnabled=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+let motionTimer=null,lastMotionTick=0,lastFollowCenterAt=0;
+const motionToggle=document.createElement('button');
+motionToggle.type='button';motionToggle.textContent=smoothMotionEnabled?'✈ Smooth Motion On':'✈ Smooth Motion Off';
+motionToggle.title='Efficient estimated motion between real position reports. Reported positions remain the source of truth.';
+document.querySelector('nav')?.appendChild(motionToggle);
+function smoothMotionAllowed(){
+ return smoothMotionEnabled&&document.visibilityState==='visible'&&
+ document.querySelector('[data-tab="radar"]')?.classList.contains('active')&&!map.isMoving();
 }
+function predictedPosition(a,updatedAt,now=Date.now()){
+ if(!Number.isFinite(a?.lat)||!Number.isFinite(a?.lon))return null;
+ const age=Number(a.seen_pos),knots=Number(a.gs),heading=Number(a.track);
+ if(a.alt_baro==='ground'||!Number.isFinite(knots)||knots<15||knots>800||
+ !Number.isFinite(heading)||!Number.isFinite(age)||age<0||age>18)return [a.lon,a.lat];
+ const delta=Math.max(0,Math.min(SMOOTH_MOTION_MAX_MS,(now-updatedAt)+age*1000))/1000;
+ const km=knots*1.852*delta/3600;
+ const rad=heading*Math.PI/180;
+ const lat=a.lat+km*Math.cos(rad)/111.2;
+ const lon=a.lon+km*Math.sin(rad)/(111.2*Math.max(.15,Math.cos(a.lat*Math.PI/180)));
+ return Math.abs(lat)<=90&&Math.abs(lon)<=180?[lon,lat]:[a.lon,a.lat];
+}
+motionToggle.onclick=()=>{
+ smoothMotionEnabled=!smoothMotionEnabled;
+ motionToggle.textContent=smoothMotionEnabled?'✈ Smooth Motion On':'✈ Smooth Motion Off';
+ if(!smoothMotionEnabled){for(const item of markers.values()){const a=item.aircraft;if(Number.isFinite(a.lon)&&Number.isFinite(a.lat))item.marker.setLngLat([a.lon,a.lat])}}
+};
+function animateMarker(item,to){
+ // Existing markers update from the last reported location; lightweight animation runs separately.
+ item.aircraft=to;item.lastReportAt=Date.now();
+ if(!smoothMotionEnabled)item.marker.setLngLat([to.lon,to.lat]);
+}
+function updateMotionLoop(){
+ motionTimer=null;
+ if(!smoothMotionAllowed())return;
+ const now=Date.now();
+ if(now-lastMotionTick<SMOOTH_MOTION_TICK_MS){motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);return}
+ lastMotionTick=now;
+ let updated=0;
+ for(const [id,item] of markers){
+  if(updated>=35)break;
+  const a=item.aircraft;if(!a||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
+  const born=item.lastReportAt||0;
+  if(now-born>SMOOTH_MOTION_MAX_MS)continue;
+  const next=predictedPosition(a,born,now);
+  if(next){item.marker.setLngLat(next);updated++}
+ }
+ motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);
+}
+function requestMotionLoop(){
+ if(motionTimer!==null)return;
+ motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);
+}
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden){clearTimeout(motionTimer);motionTimer=null}
+ else requestMotionLoop();
+});
 function render(){
  drawRadarOverlays();const q=search.value.trim().toUpperCase(),seen=new Set();
  const bounds=map.getBounds(),center=map.getCenter();
@@ -518,14 +573,14 @@ function render(){
   const db=(b.lon-center.lng)**2*Math.cos(center.lat*Math.PI/180)**2+(b.lat-center.lat)**2;
   return da-db;
  });
- const limit=window.innerWidth<750?100:200,display=visible.slice(0,limit);
+ const limit=window.innerWidth<750?65:110,display=visible.slice(0,limit);
  for(const a of display){
   const id=a.hex||((a.flight||'').trim()+'-'+a.lat+'-'+a.lon);seen.add(id);
   let item=markers.get(id);
   if(!item){
    const el=document.createElement('div');el.className='plane';const shape=airframeIcon(a);el.innerHTML=shape.svg;el.style.setProperty('--plane-icon-width',shape.size+'px');el.style.setProperty('--plane-icon-height',Math.round(shape.size*1.24)+'px');const role=classifyAircraft(a);el.title=(a.flight||a.r||a.hex||'Aircraft')+' • '+role.label;el.dataset.aircraftKind=role.kind;el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Details for '+el.title);
    const m=new maplibregl.Marker({element:el,rotation:Number(a.track)||0,rotationAlignment:'map'}).setLngLat([a.lon,a.lat]).addTo(map);
-   item={marker:m,el,aircraft:a,animation:null};markers.set(id,item);
+   item={marker:m,el,aircraft:a,lastReportAt:Date.now(),animation:null};markers.set(id,item);
    el.onclick=()=>details(item.aircraft);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();details(item.aircraft)}};
   }else{item.aircraft=a;item.el.dataset.aircraftKind=classifyAircraft(a).kind;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
  }
@@ -536,11 +591,11 @@ function render(){
    if(altEl)altEl.textContent=current.alt_baro==='ground'?'On ground':Number.isFinite(current.alt_baro)?Math.round(current.alt_baro).toLocaleString()+' ft':'Not reported';
    if(speedEl)speedEl.textContent=Number.isFinite(current.gs)?Math.round(current.gs)+' kt':'Not reported';
   }
-  if(current&&followSelected&&Number.isFinite(current.lon))map.easeTo({center:[current.lon,current.lat],duration:350,essential:true});
+  if(current&&followSelected&&Number.isFinite(current.lon)&&Date.now()-lastFollowCenterAt>5000){lastFollowCenterAt=Date.now();map.easeTo({center:[current.lon,current.lat],duration:300,essential:true})}
   else if(!current)followSelected=false;
  }
- highlightSelected();
- status.textContent='Aircraft visible: '+display.length+' / '+visible.length+' nearby • Feed: '+aircraft.length+' • Updated '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString():'pending')+' • Refresh ~20s';
+ highlightSelected();requestMotionLoop();
+ status.textContent='Aircraft visible: '+display.length+' / '+visible.length+' nearby • Feed: '+aircraft.length+' • Updated '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString():'pending')+' • Refresh ~20s • Smooth motion estimated';
 }
 async function load(force=false){
  if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
