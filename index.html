@@ -532,10 +532,17 @@ motionToggle.onclick=()=>{
  smoothMotionEnabled=!smoothMotionEnabled;
  motionToggle.textContent=smoothMotionEnabled?'✈ Smooth Motion On':'✈ Smooth Motion Off';
  if(!smoothMotionEnabled){for(const item of markers.values()){const a=item.aircraft;if(Number.isFinite(a.lon)&&Number.isFinite(a.lat))item.marker.setLngLat([a.lon,a.lat])}}
+ else requestMotionLoop();
 };
 function animateMarker(item,to){
- // Existing markers update from the last reported location; lightweight animation runs separately.
- item.aircraft=to;item.lastReportAt=Date.now();
+ // UI re-renders are not new aircraft reports; only reset the prediction clock when the
+ // reported coordinates/position age actually change.
+ const last=item.aircraft;
+ const changed=last&&(
+   last.lat!==to.lat||last.lon!==to.lon||
+   (Number.isFinite(to.seen_pos)&&Number.isFinite(last.seen_pos)&&to.seen_pos<last.seen_pos-1));
+ item.aircraft=to;
+ if(changed)item.lastReportAt=Date.now();
  if(!smoothMotionEnabled)item.marker.setLngLat([to.lon,to.lat]);
 }
 function updateMotionLoop(){
