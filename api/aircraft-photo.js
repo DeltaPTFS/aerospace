@@ -32,45 +32,64 @@ function matchesType(title,type,model){
  if(/^c1/.test(code))tokens.push('cessna');
  return tokens.some(k=>k.length>2&&t.includes(k)) || (family.split(' ').length>1&&t.includes(family.split(' ').at(-1)));
 }
-async function commonsPhoto(airline,type,model){
+async function commonsPhotos(airline,type,model,maximum=7){
  const plans=[];
  if(airline)plans.push({query:airline+' '+model,needAirline:true});
  plans.push({query:model+' aircraft',needAirline:false});
+ const found=[];
+ const urls=new Set();
  for(const plan of plans){
   try{
-   const data=await fetchJson(commonsSearch(plan.query),3900);
+   const data=await fetchJson(commonsSearch(plan.query,20),4000);
    const pages=Object.values(data?.query?.pages||{}).filter(p=>p.imageinfo?.[0]?.thumburl&&isRaster(p));
-   const candidate=pages.find(p=>{
+   for(const p of pages){
     const title=normalized(p.title);
     const airlineName=normalized(airline);
     let hasAirline=airline&&title.includes(airlineName);
     if(airline==='Republic Airways')hasAirline=/republic (airways|airlines)/.test(title);
     if(airline==='American Airlines')hasAirline=/american (airlines|eagle)/.test(title);
-    return matchesType(p.title,type,model)&&(!plan.needAirline||hasAirline);
-   });
-   if(!candidate)continue;
-   const img=candidate.imageinfo[0];
-   return {url:img.thumburl,page:img.descriptionurl,credit:(plain(img.extmetadata?.Artist?.value)||'Photographer not listed')+' • Wikimedia Commons • '+plain(img.extmetadata?.LicenseShortName?.value||'see image license'),kind:plan.needAirline?'same-airline-model':'type-only',model,airline:plan.needAirline?airline:''};
+    if(!matchesType(p.title,type,model)||plan.needAirline&&!hasAirline)continue;
+    const img=p.imageinfo[0],url=safeHttp(img.thumburl),page=safeHttp(img.descriptionurl);
+    if(!url||!page||urls.has(page))continue;
+    urls.add(page);
+    found.push({url,page,credit:(plain(img.extmetadata?.Artist?.value)||'Photographer not listed')+' • Wikimedia Commons • '+plain(img.extmetadata?.LicenseShortName?.value||'see image license'),kind:plan.needAirline?'same-airline-model':'type-only',model,airline:plan.needAirline?airline:''});
+    if(found.length>=maximum)return found;
+   }
   }catch{}
  }
- return null;
+ return found;
 }
 export default async function handler(req,res){
  const hex=safeString(req.query.hex,6).toLowerCase(),reg=safeString(req.query.reg,15).toUpperCase(),type=safeString(req.query.type,5).toUpperCase(),airline=safeString(req.query.airline);
  if(!/^[a-f0-9]{6}$/.test(hex)&&!/^[A-Z0-9-]{3,15}$/.test(reg)&&!type)return res.status(400).json({error:'Aircraft ID or type is required'});
  const model=MODEL[type]?.[0]||(/^[A-Z0-9]{2,5}$/.test(type)?type:'Aircraft');
- let result=null;
+ const photos=[];
+ const keys=new Set();
+ const insert=p=>{
+  if(!p?.url||!p?.page||keys.has(p.page))return;
+  keys.add(p.page);photos.push(p);
+ };
  if(/^[a-f0-9]{6}$/.test(hex)){
   try{
    const qs=new URLSearchParams();if(reg)qs.set('reg',reg);if(type)qs.set('icaoType',type);
-   const p=await fetchJson('https://api.planespotters.net/pub/photos/hex/'+hex+'?'+qs,3600);
-   const photo=p?.photos?.find(x=>safeHttp(x?.thumbnail_large?.src)||safeHttp(x?.thumbnail?.src));
-   if(photo)result={url:safeHttp(photo.thumbnail_large?.src)||safeHttp(photo.thumbnail?.src),page:safeHttp(photo.link)||(String(photo.link||'').startsWith('/')?'https://www.planespotters.net'+photo.link:'https://www.planespotters.net/'),credit:'© '+(photo.photographer||'photographer')+' / Planespotters.net',kind:'registration',model,airline};
+   const p=await fetchJson('https://api.planespotters.net/pub/photos/hex/'+hex+'?'+qs,4200);
+   // Photos returned for the actual ICAO address take priority. Never claim today's livery.
+   for(const photo of (Array.isArray(p?.photos)?p.photos:[]).slice(0,12)){
+    const url=safeHttp(photo?.thumbnail_large?.src)||safeHttp(photo?.thumbnail?.src);
+    const rawLink=String(photo?.link||'');
+    const page=safeHttp(rawLink)||(rawLink.startsWith('/')?'https://www.planespotters.net'+rawLink:null);
+    if(!url||!page)continue;
+    insert({url,page,credit:'© '+(photo.photographer||'Photographer')+' / Planespotters.net',kind:'registration',model,airline});
+    if(photos.length>=8)break;
+   }
   }catch{}
  }
- if(!result)result=await commonsPhoto(airline,type,model);
+ if(photos.length<7){
+  const more=await commonsPhotos(airline,type,model,7-photos.length);
+  for(const photo of more)insert(photo);
+ }
  res.setHeader('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
- if(result)return res.status(200).json(result);
+ if(photos.length)return res.status(200).json({...photos[0],photos:photos.slice(0,9),count:photos.length});
  const searchTerm=[airline,model].filter(Boolean).join(' ')||type||reg||hex;
- return res.status(200).json({url:null,kind:'unavailable',model,searchPage:'https://commons.wikimedia.org/w/index.php?search='+encodeURIComponent(searchTerm)+'&title=Special:MediaSearch&type=image'});
+ return res.status(200).json({url:null,photos:[],count:0,kind:'unavailable',model,searchPage:'https://commons.wikimedia.org/w/index.php?search='+encodeURIComponent(searchTerm)+'&title=Special:MediaSearch&type=image'});
 }
