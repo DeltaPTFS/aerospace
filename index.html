@@ -547,7 +547,12 @@ function animateMarker(item,to){
 }
 function updateMotionLoop(){
  motionTimer=null;
- if(!smoothMotionAllowed())return;
+ if(!smoothMotionAllowed()){
+  // Follow-camera transitions pause prediction briefly, not permanently.
+  if(document.visibilityState==='visible'&&document.querySelector('[data-tab="radar"]')?.classList.contains('active')&&smoothMotionEnabled)
+   motionTimer=setTimeout(updateMotionLoop,500);
+  return;
+ }
  const now=Date.now();
  if(now-lastMotionTick<SMOOTH_MOTION_TICK_MS){motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);return}
  lastMotionTick=now;
