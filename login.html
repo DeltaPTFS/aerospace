@@ -11,8 +11,36 @@ try {
  const auth=getAuth(initializeApp(config));const provider=new GoogleAuthProvider();
  provider.setCustomParameters({prompt:'select_account'});
  btn.disabled=false;msg('Sign in to continue.');
- onAuthStateChanged(auth,user=>{if(user){msg('Signed in as '+(user.email||user.displayName||'Google user')+'. Opening your profile…');location.replace(destination)}});
- getRedirectResult(auth).catch(e=>msg('Google sign-in could not finish: '+e.code,true));
- btn.onclick=async()=>{btn.disabled=true;msg('Opening Google sign-in…');try{if(/iPhone|iPad|iPod/.test(navigator.userAgent))await signInWithRedirect(auth,provider);else await signInWithPopup(auth,provider)}catch(e){msg('Sign-in failed: '+e.code,true);btn.disabled=false}};
+ const issue=e=>{
+  const code=String(e?.code||'');
+  if(code.includes('unauthorized-domain'))return 'This website domain must be added to Firebase Authentication → Authorized domains.';
+  if(code.includes('operation-not-allowed'))return 'Google sign-in must be enabled in Firebase Authentication → Sign-in method.';
+  if(code.includes('popup-closed-by-user'))return 'Sign-in was cancelled. Try again when ready.';
+  if(code.includes('popup-blocked'))return 'Your browser blocked the sign-in window. Try the redirect option.';
+  if(code.includes('network-request-failed'))return 'Network connection failed. Check your internet connection.';
+  if(code.includes('web-storage-unsupported'))return 'Browser storage is blocked. Allow website storage or disable private browsing.';
+  return 'Google sign-in could not complete'+(code?' ('+code+')':'')+'.';
+ };
+ const redirectButton=document.createElement('button');
+ redirectButton.type='button';redirectButton.textContent='Try redirect sign-in instead';
+ redirectButton.style.cssText='display:none;margin-top:8px;background:#173657;color:#e5f5ff;border:1px solid #42698b';
+ btn.after(redirectButton);
+ redirectButton.onclick=async()=>{
+  redirectButton.disabled=true;msg('Continuing to Google sign-in…');
+  try{await signInWithRedirect(auth,provider)}catch(e){msg(issue(e),true);redirectButton.disabled=false}
+ };
+ onAuthStateChanged(auth,user=>{
+  if(user){msg('Signed in as '+(user.email||user.displayName||'Google user')+'. Opening your profile…');location.replace(destination)}
+  else msg('Google sign-in is ready. You can stay signed out and use the radar.');
+ },e=>msg(issue(e),true));
+ getRedirectResult(auth).catch(e=>{msg(issue(e),true);redirectButton.style.display='block';btn.disabled=false});
+ btn.onclick=async()=>{
+  btn.disabled=true;msg('Opening Google sign-in…');
+  try{await signInWithPopup(auth,provider)}
+  catch(e){
+   msg(issue(e),true);
+   if(!String(e?.code||'').includes('popup-closed-by-user'))redirectButton.style.display='block';
+  }finally{btn.disabled=false}
+ };
 } catch(e){msg(e.message+' The site administrator must enable Google Authentication first.',true);}
 </script></body></html>
