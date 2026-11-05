@@ -60,3 +60,13 @@
 .atc-atis-message strong{display:block;color:#8fdaff;margin-bottom:7px}
 .atc-atis-credit{font-size:12px;color:#99d9ff;width:max-content}
 @media(max-width:530px){.atc-atis-search>*{width:100%}}
+
+/* Performance: rotor SVG is a still silhouette; avoid hundreds of independent CSS animations. */
+.plane .helicopter-rotor{animation:none!important}
+.plane{will-change:auto;contain:layout style}
+#map{overscroll-behavior:contain}
+.atc-training{margin:14px 0;padding:15px 16px;border:1px solid #416780;border-radius:14px;background:#102b43;display:grid;gap:10px}
+.atc-training h3{font-size:16px;margin:0;color:#dcefff}
+.atc-training p{font-size:13px!important;margin:0;color:#b8d2e6!important}
+.atc-training button{justify-self:start}
+.atc-training .atc-demo-script{font-style:italic;color:#dcecff;font-size:13px;line-height:1.5}
