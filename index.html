@@ -586,7 +586,12 @@ function startFocusedTracking(hex){
        if(fresh&&Number.isFinite(existing.lat)&&Number.isFinite(existing.lon)){
         rememberAircraftPositions([existing]);
         const marker=markers.get(requestedHex);
-        if(marker){marker.aircraft=existing;marker.lastReportAt=Date.now();marker.el.dataset.aircraftKind=classifyAircraft(existing).kind;if(!smoothMotionEnabled)marker.marker.setLngLat([existing.lon,existing.lat]);marker.marker.setRotation(Number(existing.track)||0)}
+        if(marker){
+         marker.lastReportAt=Date.now();
+         marker.el.dataset.aircraftKind=classifyAircraft(existing).kind;
+         if(!smoothMotionEnabled)marker.marker.setLngLat([existing.lon,existing.lat]);
+         marker.marker.setRotation(Number(existing.track)||0);
+        }
         if(followSelected&&Date.now()-lastFollowCenterAt>4000){lastFollowCenterAt=Date.now();map.easeTo({center:[existing.lon,existing.lat],duration:280,essential:true})}
        }
       }
@@ -621,7 +626,7 @@ motionToggle.title='Efficient estimated motion between real position reports. Re
 document.querySelector('nav')?.appendChild(motionToggle);
 function smoothMotionAllowed(){
  return smoothMotionEnabled&&document.visibilityState==='visible'&&
- document.querySelector('[data-tab="radar"]')?.classList.contains('active')&&!map.isMoving();
+ document.querySelector('[data-tab="radar"]')?.classList.contains('active');
 }
 function predictedPosition(a,updatedAt,now=Date.now()){
  if(!Number.isFinite(a?.lat)||!Number.isFinite(a?.lon))return null;
@@ -654,23 +659,19 @@ function animateMarker(item,to){
 }
 function updateMotionLoop(){
  motionTimer=null;
- if(!smoothMotionAllowed()){
-  // Follow-camera transitions pause prediction briefly, not permanently.
-  if(document.visibilityState==='visible'&&document.querySelector('[data-tab="radar"]')?.classList.contains('active')&&smoothMotionEnabled)
-   motionTimer=setTimeout(updateMotionLoop,500);
-  return;
- }
+ if(!smoothMotionAllowed())return;
  const now=Date.now();
  if(now-lastMotionTick<SMOOTH_MOTION_TICK_MS){motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);return}
  lastMotionTick=now;
- let updated=0;
- for(const [id,item] of markers){
-  if(updated>=35)break;
-  const a=item.aircraft;if(!a||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
+ // Move all visible aircraft, including while the selected plane is followed.
+ // Coarser cadence keeps the number of DOM/map updates low on laptops and phones.
+ for(const item of markers.values()){
+  const a=item.aircraft;
+  if(!a||!Number.isFinite(a.lat)||!Number.isFinite(a.lon))continue;
   const born=item.lastReportAt||0;
   if(now-born>SMOOTH_MOTION_MAX_MS)continue;
   const next=predictedPosition(a,born,now);
-  if(next){item.marker.setLngLat(next);updated++}
+  if(next)item.marker.setLngLat(next);
  }
  motionTimer=setTimeout(updateMotionLoop,SMOOTH_MOTION_TICK_MS);
 }
@@ -701,7 +702,7 @@ function render(){
    const m=new maplibregl.Marker({element:el,rotation:Number(a.track)||0,rotationAlignment:'map'}).setLngLat([a.lon,a.lat]).addTo(map);
    item={marker:m,el,aircraft:a,lastReportAt:Date.now(),animation:null};markers.set(id,item);
    el.onclick=()=>details(item.aircraft);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();details(item.aircraft)}};
-  }else{item.aircraft=a;item.el.dataset.aircraftKind=classifyAircraft(a).kind;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
+  }else{item.el.dataset.aircraftKind=classifyAircraft(a).kind;animateMarker(item,a);item.marker.setRotation(Number(a.track)||0)}
  }
  for(const [id,item] of markers){if(!seen.has(id)){if(item.animation)cancelAnimationFrame(item.animation);item.marker.remove();markers.delete(id)}}
  if(activeHex){
