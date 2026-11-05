@@ -151,3 +151,42 @@ body.aircraft-selected #panel .full-flight .detail-row strong{font-size:13px}
  .aircraft-panel-nav button{padding:8px 6px!important}
  .aero-model-art{height:125px}
 }
+
+/* Aircraft photography is the hero: no blue generic silhouette. */
+body.aircraft-selected #panel .aero-aircraft-hero{padding:10px 11px 13px}
+body.aircraft-selected #panel .aero-hero-gallery{
+ display:grid;gap:8px;width:100%;max-width:none;margin:0 0 12px;
+ padding:9px;background:#091d32;border:1px solid #356684;border-radius:15px;
+ min-height:260px;align-content:start;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-photo-button{
+ display:block;width:100%;border:0;border-radius:11px;overflow:hidden;
+ background:#071725;padding:0;cursor:zoom-in;
+}
+body.aircraft-selected #panel .aero-hero-gallery .aircraft-picture{
+ display:block;width:100%;height:245px;max-height:none;object-fit:cover;
+ object-position:center;background:#071725;border-radius:0;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-heading{
+ margin:0 4px;min-height:23px;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-controls{margin:0 3px}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-credit{
+ max-width:100%;font-size:10px!important;line-height:1.4;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-unavailable{
+ min-height:220px;display:flex;flex-direction:column;justify-content:center;
+ align-items:center;text-align:center;gap:7px;color:#d0eaff;
+ background:radial-gradient(ellipse at center,#153c5c,#081c32);border-radius:11px;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-unavailable strong{font-size:18px}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-unavailable p{
+ max-width:300px;color:#a6c5d9!important;font-size:12px!important;
+}
+body.aircraft-selected #panel .aero-hero-gallery .gallery-loading{min-height:240px;display:grid;place-items:center;color:#bcdaf0;font-size:13px}
+@media(min-width:850px){
+ body.aircraft-selected #panel .aero-hero-gallery .aircraft-picture{height:255px}
+}
+@media(max-width:430px){
+ body.aircraft-selected #panel .aero-hero-gallery .aircraft-picture{height:225px}
+}
