@@ -617,7 +617,7 @@ function closeSelection(){stopFocusedTracking();activeHex=null;verifiedOrigin=nu
 // Efficient visual dead-reckoning. Marker-only display prediction; never feeds trail logs or aircraft facts.
 // Max 4 updates/second for background aircraft, max 6 for the selected aircraft.
 // Prediction stops 12s after a genuine position report. No prediction on the ground or stale inputs.
-const SMOOTH_MOTION_MAX_MS=12000,SMOOTH_MOTION_TICK_MS=250;
+const SMOOTH_MOTION_MAX_MS=24000,SMOOTH_MOTION_TICK_MS=250;
 let smoothMotionEnabled=!matchMedia('(prefers-reduced-motion: reduce)').matches;
 let motionTimer=null,lastMotionTick=0,lastFollowCenterAt=0;
 const motionToggle=document.createElement('button');
