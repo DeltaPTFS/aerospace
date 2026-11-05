@@ -326,10 +326,13 @@ async function loadPhoto(a,hex){
   const count=document.createElement('span');count.className='gallery-count';count.textContent=photos.length?photos.length+' photo'+(photos.length!==1?'s':''):'No verified photos';
   heading.append(title,count);box.append(heading);
   if(!photos.length){
-   const empty=document.createElement('p');empty.className='gallery-status';empty.textContent='No matching aircraft or model photos available yet. A representative photo will never be presented as this exact aircraft.';box.append(empty);return;
+   const empty=document.createElement('div');empty.className='gallery-unavailable';
+   const description=document.createElement('strong');description.textContent='Photo unavailable';
+   const detail=document.createElement('p');detail.textContent='No verified photo of this aircraft or model was returned. Model: '+aircraftModelInfo(a).label+'.';
+   empty.append(description,detail);box.append(empty);return;
   }
   const main=document.createElement('button');main.type='button';main.className='gallery-photo-button';main.title='View larger photo';
-  const img=document.createElement('img');img.className='aircraft-picture';img.alt='Photo of aircraft';img.loading='lazy';img.decoding='async';main.append(img);box.append(main);
+  const img=document.createElement('img');img.className='aircraft-picture';img.alt='Photo of aircraft';img.loading='eager';img.fetchPriority='high';img.decoding='async';main.append(img);box.append(main);
   const caption=document.createElement('p');caption.className='gallery-caption';box.append(caption);
   const nav=document.createElement('div');nav.className='gallery-controls';
   const prev=document.createElement('button');prev.type='button';prev.textContent='‹ Previous';
@@ -394,14 +397,14 @@ function details(a){
  const altDisplay=typeof alt==='number'?Math.round(alt).toLocaleString()+' ft':alt==='On ground'?'On ground':'Not reported';
  const speedDisplay=Number.isFinite(a.gs)?Math.round(a.gs)+' kt':'Not reported';
  panel.innerHTML='<div class="tracking-tools"><div class="tracking-id"><span class="tracking-kicker">AEROSCOPE / LIVE AIRCRAFT</span><strong>Flight '+text(call)+'</strong></div><div class="tracking-actions"><button id="follow-plane" type="button">● Follow</button><button id="close-plane" type="button" aria-label="Close aircraft panel">✕</button></div></div>'
- +'<section class="aero-aircraft-hero" id="aircraft-overview"><div class="aero-model-card"><div class="aero-model-intro"><span>REPORTED AIRCRAFT MODEL</span><span class="model-code">'+text(aircraftModelInfo(a).type||'UNKNOWN')+'</span></div><div class="aero-model-art">'+blueAircraftModel(a)+'</div><strong class="aero-model-name">'+text(aircraftModelInfo(a).label)+'</strong><small>Blue type silhouette • illustrative, not a certified 3D model</small></div>'
+ +'<section class="aero-aircraft-hero" id="aircraft-overview"><div id="aircraft-photo" class="aircraft-photo aero-hero-gallery" aria-label="Aircraft photo gallery"><div class="gallery-loading">Loading photos of this aircraft…</div></div>'
  +'<div class="aero-identity"><div class="flight-airline">'+text(airlineFor(a)||a.ownOp||'Aircraft information')+'</div><span class="flight-status">'+text(statusLabel)+'</span></div>'
  +'<div class="flight-classification" id="aircraft-classification"><strong>'+text(classifyAircraft(a).label)+'</strong><small>'+text(classifyAircraft(a).note)+'</small></div>'
  +'<div class="flight-route-hero"><div><span>FROM</span><strong id="quick-origin">—</strong><small id="quick-origin-name">Checking…</small></div><span class="flight-direction">✈</span><div><span>TO</span><strong id="quick-destination">—</strong><small id="quick-destination-name">Checking…</small></div></div>'
  +'<div class="flight-key-numbers"><div><span>ALTITUDE</span><strong id="quick-altitude">'+text(altDisplay)+'</strong></div><div><span>SPEED</span><strong id="quick-speed">'+text(speedDisplay)+'</strong></div><div><span>HEADING</span><strong id="quick-heading">'+text(Number.isFinite(a.track)?Math.round((a.track+360)%360)+'°':'—')+'</strong></div><div><span>CLIMB / DESCENT</span><strong id="quick-climb">'+text(Number.isFinite(a.baro_rate)?Math.round(a.baro_rate)+' ft/min':'—')+'</strong></div><div><span>ARRIVAL</span><strong id="quick-arrival">Not verified</strong></div><div><span>REPORT AGE</span><strong id="quick-position-age">'+text(Number.isFinite(a.seen_pos)?a.seen_pos.toFixed(1)+' sec':'—')+'</strong></div></div>'
  +'<div class="flight-quick-state" id="quick-state">Reported position • Checking verified route</div><div class="flight-quick-state" id="live-refresh-label">Checking live aircraft updates…</div><div class="flight-quick-state" id="trail-status">'+text(trailStatus(hex))+'</div></section>'
  +'<nav class="aircraft-panel-nav" aria-label="Aircraft panel sections"><button type="button" data-aircraft-section="aircraft-overview" class="active">Overview</button><button type="button" data-aircraft-section="aircraft-photo">Photos</button><button type="button" data-aircraft-section="full-flight-details">Full details</button><button type="button" data-aircraft-section="aircraft-atc-section">ATC</button></nav>'
- +'<div id="aircraft-photo" class="aircraft-photo" aria-label="Aircraft photo gallery">Finding aircraft photographs…</div>'
+
  +'<details class="full-flight" id="full-flight-details"><summary>Detailed flight information, aircraft data &amp; ATC</summary>'
  +'<p style="font-size:12px;color:#b8d6e9">Map tracks: pink = earlier positions from a licensed historical provider when available; cyan = positions observed by AeroScope; dashed gold/orange = airport references, not flown paths. Airport pins = selected major airports.</p>'
  +'<section class="schedule-box"><h3>Flight route & times</h3><div class="detail-grid">'
