@@ -12,8 +12,19 @@ export default async function handler(req,res){
    const response=await fetch(feed.url,{signal:ctrl.signal,headers:{Accept:'application/json','User-Agent':'AeroScopeONE/0.4 (aeroscope-one.vercel.app; contact aeroscopefly@gmail.com)'}});
    if(!response.ok)throw Error('HTTP '+response.status);
    const data=await response.json();if(!Array.isArray(data.ac))throw Error('Missing aircraft list');
+   // Only return aircraft with a recent reported position. Do not label old
+   // transponder reports as live just because this API request was recent.
+   const fresh=data.ac.filter(a=>{
+    if(!Number.isFinite(a?.lat)||!Number.isFinite(a?.lon))return false;
+    const age=Number(a.seen_pos);
+    return Number.isFinite(age)&&age>=0&&age<=75;
+   });
    res.setHeader('Cache-Control','public, s-maxage=8, stale-while-revalidate=8');
-   return res.status(200).json({ac:data.ac,source:feed.name,now:data.now||Date.now(),total:data.total??data.ac.length,servedAt:new Date().toISOString()});
+   return res.status(200).json({
+    ac:fresh,source:feed.name,now:data.now||Date.now(),total:data.total??data.ac.length,
+    recentCount:fresh.length,maxPositionAgeSec:75,servedAt:new Date().toISOString(),
+    coverage:'Receiver-dependent regional ADS-B/MLAT; not every aircraft is observable.'
+   });
   }catch(e){last=feed.name+' '+(e.name==='AbortError'?'timed out':e.message)}
   finally{clearTimeout(timeout)}
  }
