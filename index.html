@@ -16,9 +16,37 @@
 @media(prefers-reduced-motion:reduce){.selected-aircraft::after{animation:none}}
 .camera-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}.camera-links a{display:block;padding:18px;background:#163656;border:1px solid #49769a;border-radius:12px;text-decoration:none;color:#b4e4ff}.schedule-links a{color:#8ed5ff;font-size:13px}.schedule-links{margin:8px 0 12px}.schedule-box{border:0!important;background:transparent!important;padding:4px 0!important}.schedule-box .detail-grid{gap:0!important;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #284461}.schedule-box .detail-row{background:transparent!important;border-radius:0!important;padding:13px 12px!important;border-bottom:1px solid #284461;min-height:64px}.schedule-box .detail-row:nth-child(odd){border-right:1px solid #284461}.schedule-box h3{border-bottom:1px solid #284461;padding-bottom:12px}.detail-row:not(.schedule-box .detail-row){border-radius:10px}.data-disclaimer{padding:10px 3px}.aircraft-photo{border-radius:14px}.schedule-links button{border-radius:20px}#route-note{max-width:55ch;line-height:1.5}</style><link rel="stylesheet" href="/enhancements.css"></head><body><header><div class="brand"><span class="aero-wordmark"><svg class="aero-symbol" viewBox="0 0 102 76" role="img" aria-label="AeroScope logo"><path d="M9 70 40 6 Q43 1 47 6 L78 70 H60 L44 32 27 70Z" fill="#75bdff"/><path d="M4 58 C27 66 60 51 91 24" fill="none" stroke="#e7f7ff" stroke-width="6" stroke-linecap="round"/><path d="M77 21 95 9 89 29 83 23 75 29Z" fill="#75bdff"/></svg><span class="aero-word">eroScope</span><span class="aero-one">ONE<sup>™</sup></span></span><span class="aero-version" aria-label="Version 0.5">v0.5</span></div><div class="headright"><small>Live regional radar • Beta</small><a class="signin" href="/profile">My Account</a></div></header><nav><button class="active" data-tab="radar">Flight Radar</button><button data-tab="atc">ATC Recordings</button><button data-tab="cams">Airport Cameras</button><button data-tab="window">Window View</button><button data-tab="sim">Simulation</button></nav><div id="status">Loading map…</div><main id="map"><div id="toolbar"><input id="search" placeholder="Search callsign, flight, airline…" aria-label="Search aircraft and airlines" autocomplete="off"><button id="refresh">↻ Refresh</button><div id="search-results" role="region" aria-label="Flight search results" hidden></div></div></main><div id="panel"><b>Tap a plane to inspect it.</b><p>Move the map to load nearby aircraft. Flight positions depend on public receiver coverage.</p></div><section id="other"></section><script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script><script>
 const map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:[-73.87,40.77],zoom:7});map.addControl(new maplibregl.NavigationControl(),'bottom-right');
-const regionBar=document.createElement('div');regionBar.style.cssText='display:flex;gap:6px;overflow-x:auto;padding:7px 12px;background:#0d2037';
-const regions=[['USA',-98.5,39.5,3.2],['Northeast',-74.5,41,6],['Southeast',-83,33,5.5],['Midwest',-92,42,5],['South',-98,32,5],['West',-117,39,4.6],['Alaska',-150,63,3.6],['Hawaii',-156.5,20.5,6]];
-for(const [name,lon,lat,zoom] of regions){const b=document.createElement('button');b.textContent=name;b.style.cssText='padding:6px 11px;font-size:12px;white-space:nowrap';b.onclick=()=>{followSelected=false;const fb=panel.querySelector('#follow-plane');if(fb)fb.textContent='○ Follow aircraft';map.jumpTo({center:[lon,lat],zoom});load(true)};regionBar.appendChild(b)}
+const regionBar=document.createElement('div');
+regionBar.id='world-region-bar';
+regionBar.style.cssText='display:flex;gap:7px;align-items:center;overflow-x:auto;padding:8px 12px;background:#0d2037;border-bottom:1px solid #29445e';
+const regions=[
+ ['🌍 World overview',0,15,1.65],
+ ['🇺🇸 USA / New York',-73.87,40.77,7],['🇺🇸 USA / Los Angeles',-118.4,33.94,7],['🇨🇦 Canada / Toronto',-79.63,43.68,7],
+ ['🇩🇴 Dominican Republic',-69.67,18.43,7],['🇵🇷 Puerto Rico',-66.00,18.44,7],['🇨🇺 Cuba',-82.41,23.11,7],['🇯🇲 Jamaica',-76.79,17.94,7],['🇭🇹 Haiti',-72.30,18.58,7],['🇲🇽 Mexico City',-99.07,19.44,7],['🇨🇷 Costa Rica',-84.21,9.99,7],['🇵🇦 Panama',-79.38,9.07,7],
+ ['🇨🇴 Colombia',-74.14,4.70,7],['🇻🇪 Venezuela',-66.99,10.60,7],['🇪🇨 Ecuador',-78.35,-0.13,7],['🇵🇪 Peru',-77.11,-12.02,7],['🇧🇷 Brazil / São Paulo',-46.65,-23.55,7],['🇧🇷 Brazil / Rio',-43.25,-22.81,7],['🇦🇷 Argentina',-58.54,-34.82,7],['🇨🇱 Chile',-70.79,-33.39,7],
+ ['🇬🇧 United Kingdom',-0.46,51.47,7],['🇫🇷 France',2.55,49.00,7],['🇪🇸 Spain',-3.57,40.49,7],['🇵🇹 Portugal',-9.14,38.77,7],['🇩🇪 Germany',8.57,50.03,7],['🇮🇹 Italy',12.25,41.80,7],['🇳🇱 Netherlands',4.76,52.31,7],
+ ['🇲🇦 Morocco',-7.59,33.37,7],['🇪🇬 Egypt',31.41,30.12,7],['🇳🇬 Nigeria',3.32,6.58,7],['🇬🇭 Ghana',-0.17,5.60,7],['🇪🇹 Ethiopia',38.80,8.98,7],['🇰🇪 Kenya',36.93,-1.32,7],['🇿🇦 South Africa',28.25,-26.14,7],['🇹🇿 Tanzania',39.20,-6.88,7],
+ ['🇦🇪 UAE / Dubai',55.36,25.25,7],['🇸🇦 Saudi Arabia',46.70,24.96,7],['🇮🇳 India / Delhi',77.10,28.56,7],['🇮🇳 India / Mumbai',72.88,19.09,7],['🇹🇭 Thailand',100.75,13.69,7],['🇸🇬 Singapore',103.99,1.36,7],['🇲🇾 Malaysia',101.71,2.75,7],['🇵🇭 Philippines',121.02,14.51,7],
+ ['🇨🇳 China / Beijing',116.60,40.08,7],['🇨🇳 China / Shanghai',121.80,31.15,7],['🇯🇵 Japan / Tokyo',139.78,35.55,7],['🇰🇷 South Korea',126.45,37.46,7],['🇮🇩 Indonesia',106.65,-6.13,7],
+ ['🇦🇺 Australia / Sydney',151.18,-33.95,7],['🇦🇺 Australia / Melbourne',144.84,-37.67,7],['🇳🇿 New Zealand',174.81,-41.32,7],
+];
+function jumpToRegion(r){
+ if(!r)return;
+ followSelected=false;
+ const fb=panel.querySelector('#follow-plane');if(fb)fb.textContent='○ Follow aircraft';
+ map.jumpTo({center:[r[1],r[2]],zoom:r[3]});
+ void load(true);
+}
+for(const r of [regions[0],regions[1],regions[4],regions[12],regions[21],regions[30],regions[38],regions[44]]){
+ if(!r)continue;const button=document.createElement('button');button.type='button';button.textContent=r[0];button.className='region-shortcut';button.onclick=()=>jumpToRegion(r);regionBar.append(button);
+}
+const regionSelect=document.createElement('select');regionSelect.id='world-region-select';
+regionSelect.setAttribute('aria-label','Jump to a country or worldwide region');
+regionSelect.title='Explore aircraft around a country or city worldwide';
+regionSelect.innerHTML='<option value="">🌐 Jump to country or city…</option>';
+regions.forEach((r,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=r[0];regionSelect.append(option)});
+regionSelect.onchange=()=>{if(regionSelect.value!=='')jumpToRegion(regions[Number(regionSelect.value)]);regionSelect.value=''};
+regionBar.prepend(regionSelect);
 document.querySelector('nav').after(regionBar);
 const status=document.getElementById('status'),panel=document.getElementById('panel'),search=document.getElementById('search');
 let aircraft=[],timer,activeHex=null,refreshing=false,followSelected=true,lastRequestedAt=0,lastLoadedAt=null;
@@ -717,11 +745,69 @@ function render(){
  highlightSelected();requestMotionLoop();
  status.textContent='Aircraft visible: '+display.length+' / '+visible.length+' nearby • Feed: '+aircraft.length+' • Updated '+(lastLoadedAt?lastLoadedAt.toLocaleTimeString():'pending')+' • Refresh ~20s • Smooth motion estimated';
 }
+// Worldwide map: bounded, sampled receiver coverage. Regional zoom gives more detail.
+// This does NOT represent every aircraft everywhere on earth.
+const globalRadarCenters=[
+ [-103,38],[-70,18],[-57,-16],[-2,50],[19,7],[27,-25],[55,26],[81,22],[120,34],[136,-27]
+];
+const radarCache=new Map();
+function radarCenters(){
+ const c=map.getCenter(),z=map.getZoom(),result=[[c.lng,c.lat]];
+ if(z<=3.2){
+  for(const point of globalRadarCenters)if(!result.some(v=>Math.abs(v[0]-point[0])<8&&Math.abs(v[1]-point[1])<8))result.push(point);
+ }else if(z<5.8){
+  const b=map.getBounds();
+  const dx=Math.min(4.5,Math.abs(b.getEast()-b.getWest())/5);
+  const dy=Math.min(3.5,Math.abs(b.getNorth()-b.getSouth())/5);
+  result.push([c.lng-dx,c.lat],[c.lng+dx,c.lat],[c.lng,c.lat-dy],[c.lng,c.lat+dy]);
+ }
+ return result.slice(0,z<=3.2?11:5).filter(([lon,lat])=>Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=85&&Math.abs(lon)<=180);
+}
+async function radarSample(lon,lat,center=false){
+ // Browser-side regional cache avoids repeating the expensive satellite queries.
+ const key=lat.toFixed(1)+','+lon.toFixed(1),now=Date.now(),cached=radarCache.get(key);
+ const ageLimit=center?16000:65000;
+ if(cached&&now-cached.at<ageLimit){
+  const delta=(now-cached.at)/1000;
+  return cached.ac.filter(a=>Number(a.seen_pos)+delta<=75);
+ }
+ const qs=new URLSearchParams({lat:lat.toFixed(1),lon:lon.toFixed(1)});
+ const res=await fetch('/api/aircraft?'+qs,{cache:'default'});
+ if(!res.ok)throw Error('Regional feed HTTP '+res.status);
+ const data=await res.json();
+ const ac=Array.isArray(data.ac)?data.ac:[];
+ radarCache.set(key,{at:Date.now(),ac});
+ if(radarCache.size>90)radarCache.delete(radarCache.keys().next().value);
+ return ac;
+}
 async function load(force=false){
- if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;refreshing=true;lastRequestedAt=Date.now();
- const c=map.getCenter();status.textContent='Updating aircraft positions…';
- try{const res=await fetch('/api/aircraft?lat='+c.lat.toFixed(1)+'&lon='+c.lng.toFixed(1),{cache:'no-store'}); /* Coarse region only; do not transmit precise location coordinates. */ const data=await res.json();if(!res.ok)throw Error(data.error||'HTTP '+res.status);aircraft=Array.isArray(data.ac)?data.ac:[];lastLoadedAt=new Date();rememberAircraftPositions(aircraft);render();if(search.value.trim())results()}
- catch(e){status.textContent='Live tracking temporarily unavailable: '+e.message+' • Existing positions may be old'}
+ if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;
+ refreshing=true;lastRequestedAt=Date.now();
+ const centers=radarCenters();
+ const world=map.getZoom()<=3.2;
+ status.textContent=world?'Sampling recent aircraft reports across world regions…':'Updating recent aircraft reports in this region…';
+ try{
+  const found=new Map();let successful=0;
+  // A few requests at a time to avoid excessive server or browser load.
+  for(let i=0;i<centers.length;i+=3){
+   const batch=await Promise.allSettled(centers.slice(i,i+3).map((p,j)=>radarSample(p[0],p[1],i+j===0)));
+   for(const result of batch)if(result.status==='fulfilled'){
+    successful++;
+    for(const a of result.value){
+     const key=a.hex||String(a.flight||'')+'|'+a.lat+'|'+a.lon;
+     const current=found.get(key);
+     if(!current||Number(a.seen_pos)<Number(current.seen_pos))found.set(key,a);
+    }
+   }
+  }
+  if(successful===0)throw Error('No receiver feeds responded');
+  // Remove stale reports rather than showing old locations as if still live.
+  aircraft=[...found.values()].filter(a=>Number.isFinite(a.lat)&&Number.isFinite(a.lon)&&Number.isFinite(Number(a.seen_pos))&&Number(a.seen_pos)<=75);
+  lastLoadedAt=new Date();
+  rememberAircraftPositions(aircraft);render();
+  if(search.value.trim())results();
+  if(world)status.textContent+=' • World overview samples selected regions, not all aircraft globally.';
+ }catch(e){status.textContent='Recent tracking temporarily unavailable: '+e.message+' • Previously shown positions may be old'}
  finally{refreshing=false}
 }
 map.on('load',load);map.on('dragstart',()=>{if(followSelected){followSelected=false;const b=panel.querySelector('#follow-plane');if(b)b.textContent='○ Follow aircraft'}});
