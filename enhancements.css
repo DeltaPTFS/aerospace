@@ -190,3 +190,24 @@ body.aircraft-selected #panel .aero-hero-gallery .gallery-loading{min-height:240
 @media(max-width:430px){
  body.aircraft-selected #panel .aero-hero-gallery .aircraft-picture{height:225px}
 }
+
+/* Worldwide exploration bar - compact country access on every screen. */
+#world-region-bar{scrollbar-width:thin;scrollbar-color:#47789d #0d2037}
+#world-region-bar #world-region-select{
+ flex:0 0 auto;max-width:min(295px,67vw);min-width:190px;
+ background:#143f63;color:#effaff;border:1px solid #4484a6;
+ border-radius:9px;padding:10px 11px;font-size:12px;font-weight:750;
+}
+#world-region-bar .region-shortcut{
+ flex:0 0 auto;white-space:nowrap;padding:9px 12px;
+ border:1px solid #365c7b;background:#122d48;border-radius:9px;
+ font-size:12px;color:#e6f5ff;
+}
+#world-region-bar .region-shortcut:hover{background:#194c71}
+#world-region-bar #world-region-select:focus-visible,
+#world-region-bar .region-shortcut:focus-visible{outline:2px solid #8cdfff;outline-offset:2px}
+@media(max-width:600px){
+ #world-region-bar{padding:6px 8px;gap:6px}
+ #world-region-bar #world-region-select{max-width:72vw;min-width:150px}
+ #world-region-bar .region-shortcut{padding:9px 10px}
+}
