@@ -20,8 +20,12 @@ function stopLocalLocation(){
  if(userMarker){userMarker.remove();userMarker=null}
  centered=false;clearLoc.hidden=true;locate.disabled=false;locate.textContent='⌖ My Location';
 }
-clearLoc.onclick=()=>{stopLocalLocation();locationMessage('On-device location display stopped; the marker and its coordinates are no longer held by the page.')};
-locate.onclick=()=>{
+clearLoc.onclick=()=>{
+ stopLocalLocation();
+ if(window.AeroScopeAccount?.signedIn)window.AeroScopeSaveLivePrefs?.({location:false});
+ locationMessage('On-device location stopped. No precise coordinates are sent to your account.');
+};
+function startLocalLocation(){
  if(!navigator.geolocation){locationMessage('Location is unavailable in this browser');return}
  if(watchId!==null){clearLoc.onclick();return}
  locate.disabled=true;locate.textContent='Requesting location…';
@@ -40,8 +44,38 @@ locate.onclick=()=>{
  },e=>{
   if(e?.code===1||!userMarker){stopLocalLocation();locationMessage(e?.code===1?'Location permission was declined. AeroScope does not require location.':'Location temporarily unavailable. You can try again.')}
  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+}
+locate.onclick=()=>{
+ if(watchId!==null){clearLoc.onclick();return}
+ startLocalLocation();
+ if(watchId!==null&&window.AeroScopeAccount?.signedIn)window.AeroScopeSaveLivePrefs?.({location:true});
 };
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&watchId!==null)stopLocalLocation()});
+// A signed-in user gets their "location on" preference restored. Browsers must
+// independently grant location permission; we do not force a prompt on login.
+async function resumePermittedLocation(){
+ if(document.hidden||watchId!==null||!window.AeroScopeAccount?.signedIn||window.AeroScopeAccount?.preferences?.location!==true)return;
+ if(!navigator.geolocation)return;
+ try{
+  const permission=await navigator.permissions?.query({name:'geolocation'});
+  if(permission?.state==='granted')startLocalLocation();
+  else{
+   locate.textContent='⌖ Enable Location';
+   locate.title='Location is enabled in your account preferences. Click to grant browser permission.';
+  }
+ }catch{
+  locate.textContent='⌖ Enable Location';
+  locate.title='Click to allow on-device location tracking.';
+ }
+}
+window.addEventListener('aeroscope-account-state',e=>{
+ const state=e.detail||{};
+ if(!state.signedIn||!state.preferences?.location){stopLocalLocation();return}
+ void resumePermittedLocation();
+});
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&watchId!==null)stopLocalLocation();
+ else if(!document.hidden)void resumePermittedLocation();
+});
 window.addEventListener('pagehide',stopLocalLocation);
 oldNav.appendChild(locate);oldNav.appendChild(clearLoc);
 // Exact coordinates stay in this tab's marker only. Regional flight lookup uses coarse-rounded map coordinates.
