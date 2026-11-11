@@ -721,12 +721,29 @@ function render(){
   const db=(b.lon-center.lng)**2*Math.cos(center.lat*Math.PI/180)**2+(b.lat-center.lat)**2;
   return da-db;
  });
- const limit=window.innerWidth<750?65:110,display=visible.slice(0,limit);
+ const limit=window.innerWidth<750?65:110;
+ let display=visible.slice(0,limit);
+ if(map.getZoom()<=3.2&&visible.length>limit){
+  // Balance the world sample across longitude bands, so one busy continent
+  // does not crowd the remaining regions off the map.
+  const bands=Array.from({length:12},()=>[]);
+  for(const a of visible){
+   const band=Math.max(0,Math.min(11,Math.floor((a.lon+180)/30)));
+   bands[band].push(a);
+  }
+  display=[];
+  while(display.length<limit&&bands.some(b=>b.length)){
+   for(const band of bands){
+    if(display.length>=limit)break;
+    if(band.length)display.push(band.shift());
+   }
+  }
+ }
  for(const a of display){
   const id=a.hex||((a.flight||'').trim()+'-'+a.lat+'-'+a.lon);seen.add(id);
   let item=markers.get(id);
   if(!item){
-   const el=document.createElement('div');el.className='plane';const shape=airframeIcon(a);el.innerHTML=shape.svg;el.style.setProperty('--plane-icon-width',shape.size+'px');el.style.setProperty('--plane-icon-height',Math.round(shape.size*1.24)+'px');const role=classifyAircraft(a);el.title=(a.flight||a.r||a.hex||'Aircraft')+' • '+role.label;el.dataset.aircraftKind=role.kind;el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Details for '+el.title);
+   const el=document.createElement('div');el.className='plane';const shape=airframeIcon(a);el.innerHTML=shape.svg;el.style.setProperty('--plane-icon-width',shape.size+'px');el.style.setProperty('--plane-icon-height',Math.round(shape.size*1.24)+'px');const role=classifyAircraft(a);el.title=(a.flight||a.r||a.hex||'Aircraft')+' • '+role.label+' • Reported position age '+(Number.isFinite(a.seen_pos)?Math.round(a.seen_pos)+'s':'unknown');el.dataset.aircraftKind=role.kind;el.setAttribute('role','button');el.setAttribute('tabindex','0');el.setAttribute('aria-label','Details for '+el.title);
    const m=new maplibregl.Marker({element:el,rotation:Number(a.track)||0,rotationAlignment:'map'}).setLngLat([a.lon,a.lat]).addTo(map);
    item={marker:m,el,aircraft:a,lastReportAt:Date.now(),animation:null};markers.set(id,item);
    el.onclick=()=>details(item.aircraft);el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();details(item.aircraft)}};
@@ -754,7 +771,9 @@ const radarCache=new Map();
 function radarCenters(){
  const c=map.getCenter(),z=map.getZoom(),result=[[c.lng,c.lat]];
  if(z<=3.2){
-  for(const point of globalRadarCenters)if(!result.some(v=>Math.abs(v[0]-point[0])<8&&Math.abs(v[1]-point[1])<8))result.push(point);
+  const view=map.getBounds();
+  for(const point of globalRadarCenters)
+   if(view.contains(point)&&!result.some(v=>Math.abs(v[0]-point[0])<8&&Math.abs(v[1]-point[1])<8))result.push(point);
  }else if(z<5.8){
   const b=map.getBounds();
   const dx=Math.min(4.5,Math.abs(b.getEast()-b.getWest())/5);
