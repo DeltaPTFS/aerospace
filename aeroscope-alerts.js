@@ -22,15 +22,29 @@ function emit(label,message,hex){
   try{new Notification(label,{body:message,tag:'aeroscope-'+hex,silent:true})}catch{}
  }
 }
+function applyEnabled(next,notify=false){
+ enabled=Boolean(next);previous.clear();
+ button.classList.toggle('active',enabled);
+ button.textContent=enabled?'🔔 Alerts On':'🔕 Alerts Off';
+ button.title=enabled?'In-page alerts active while radar is open. System notifications require separate permission.':'Enable in-page flight alerts';
+ if(notify)toast(enabled?'In-page flight alerts enabled for selected aircraft.':'Flight alerts disabled on this device.');
+}
 button.onclick=async()=>{
- if(enabled){enabled=false;previous.clear();button.classList.remove('active');button.textContent='🔔 Alerts Off';toast('In-session notifications are off.');return}
- enabled=true;button.textContent='🔔 Alerts On';button.classList.add('active');
- if(typeof Notification==='function'&&Notification.permission==='default'){
+ const desired=!enabled;
+ // An account setting can default to ON, but notification permission cannot be forced.
+ if(window.AeroScopeAccount?.signedIn)window.AeroScopeSaveLivePrefs?.({alerts:desired});
+ else applyEnabled(desired);
+ if(desired&&typeof Notification==='function'&&Notification.permission==='default'){
   try{await Notification.requestPermission()}catch{}
  }
- const platform=typeof Notification!=='function'||Notification.permission!=='granted';
- toast(platform?'In-page flight alerts enabled. System notifications require browser or Home Screen app support.':'Flight alerts enabled for the selected aircraft while AeroScope is open.');
+ toast(desired?(typeof Notification==='function'&&Notification.permission==='granted'
+  ?'In-page and permitted system notifications are on while AeroScope is open.'
+  :'In-page alerts are on. Browser notifications are unavailable or not permitted.'):'Flight alerts disabled on this device.');
 };
+window.addEventListener('aeroscope-account-state',e=>{
+ const state=e.detail||{};
+ applyEnabled(Boolean(state.signedIn&&state.preferences?.alerts));
+});
 const simpleStatus=a=>a?.alt_baro==='ground'?'ground':Number.isFinite(a?.alt_baro)?'airborne':'unknown';
 function observe(a){
  if(!enabled||!a)return;
