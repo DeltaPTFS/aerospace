@@ -768,6 +768,19 @@ const globalRadarCenters=[
  [-103,38],[-70,18],[-57,-16],[-2,50],[19,7],[27,-25],[55,26],[81,22],[120,34],[136,-27]
 ];
 const radarCache=new Map();
+let radarQuotaUntil=0;
+let radarRequestCount=0;
+let radarRequestWindow=Date.now();
+function quotaGuard(){
+ const now=Date.now();
+ if(now<radarQuotaUntil)throw Error('Provider rate limit; retry in '+Math.ceil((radarQuotaUntil-now)/60000)+' min');
+ // Protect shared anonymous API quotas. A real server-side provider key is
+ // required for higher-volume worldwide operation.
+ if(now-radarRequestWindow>3600000){radarRequestWindow=now;radarRequestCount=0}
+ if(radarRequestCount>=18)throw Error('Radar hourly request budget reached. Configure an ADS-B API key for greater worldwide coverage.');
+ radarRequestCount++;
+}
+
 function radarCenters(){
  const c=map.getCenter(),z=map.getZoom(),result=[[c.lng,c.lat]];
  if(z<=3.2){
@@ -785,13 +798,19 @@ function radarCenters(){
 async function radarSample(lon,lat,center=false){
  // Browser-side regional cache avoids repeating the expensive satellite queries.
  const key=lat.toFixed(1)+','+lon.toFixed(1),now=Date.now(),cached=radarCache.get(key);
- const ageLimit=center?16000:65000;
+ const ageLimit=center?60000:180000;
  if(cached&&now-cached.at<ageLimit){
   const delta=(now-cached.at)/1000;
   return cached.ac.filter(a=>Number(a.seen_pos)+delta<=75);
  }
  const qs=new URLSearchParams({lat:lat.toFixed(1),lon:lon.toFixed(1)});
+ quotaGuard();
  const res=await fetch('/api/aircraft?'+qs,{cache:'default'});
+ if(res.status===429){
+  let retry=300;try{retry=(await res.json()).retryAfterSeconds||300}catch{}
+  radarQuotaUntil=Date.now()+Math.max(30000,Math.min(3600000,retry*1000));
+  throw Error('Aircraft provider rate limited; retry later');
+ }
  if(!res.ok)throw Error('Regional feed HTTP '+res.status);
  const data=await res.json();
  const ac=Array.isArray(data.ac)?data.ac:[];
@@ -802,7 +821,10 @@ async function radarSample(lon,lat,center=false){
 async function load(force=false){
  if(refreshing||document.hidden||Date.now()-lastRequestedAt<(force?2800:MIN_REFRESH_MS))return;
  refreshing=true;lastRequestedAt=Date.now();
- const centers=radarCenters();
+ const allCenters=radarCenters();
+// Only sample a small number of world regions per refresh. This is a preview,
+// not a continuously live, complete worldwide traffic database.
+const centers=map.getZoom()<=3.2?allCenters.slice(0,4):allCenters.slice(0,3);
  const world=map.getZoom()<=3.2;
  status.textContent=world?'Sampling recent aircraft reports across world regions…':'Updating recent aircraft reports in this region…';
  try{
@@ -828,7 +850,7 @@ async function load(force=false){
   const recordables=map.getZoom()>5.8?aircraft:(activeHex?aircraft.filter(a=>String(a.hex||'').toLowerCase()===String(activeHex).toLowerCase()):[]);
   rememberAircraftPositions(recordables);render();
   if(search.value.trim())results();
-  if(world)status.textContent+=' • World overview samples selected regions, not all aircraft globally.';
+  if(world)status.textContent+=' • Partial worldwide sample ('+centers.length+' areas), not comprehensive global traffic. API limits apply.';
  }catch(e){status.textContent='Recent tracking temporarily unavailable: '+e.message+' • Previously shown positions may be old'}
  finally{refreshing=false}
 }
