@@ -811,7 +811,11 @@ async function radarSample(lon,lat,center=false){
   radarQuotaUntil=Date.now()+Math.max(30000,Math.min(3600000,retry*1000));
   throw Error('Aircraft provider rate limited; retry later');
  }
- if(!res.ok)throw Error('Regional feed HTTP '+res.status);
+ if(!res.ok){
+  let reason='';
+  try{const errorData=await res.json();reason=String(errorData.error||errorData.details||'').slice(0,130)}catch{}
+  throw Error('Regional feed HTTP '+res.status+(reason?': '+reason:''));
+ }
  const data=await res.json();
  const ac=Array.isArray(data.ac)?data.ac:[];
  radarCache.set(key,{at:Date.now(),ac});
@@ -828,11 +832,15 @@ const centers=map.getZoom()<=3.2?allCenters.slice(0,4):allCenters.slice(0,3);
  const world=map.getZoom()<=3.2;
  status.textContent=world?'Sampling recent aircraft reports across world regions…':'Updating recent aircraft reports in this region…';
  try{
-  const found=new Map();let successful=0;
+  const found=new Map();let successful=0;const errors=[];
   // A few requests at a time to avoid excessive server or browser load.
   for(let i=0;i<centers.length;i+=3){
    const batch=await Promise.allSettled(centers.slice(i,i+3).map((p,j)=>radarSample(p[0],p[1],i+j===0)));
-   for(const result of batch)if(result.status==='fulfilled'){
+   for(const result of batch){
+    if(result.status==='rejected'){
+     errors.push(String(result.reason?.message||'Regional request failed').slice(0,180));
+     continue;
+    }
     successful++;
     for(const a of result.value){
      const key=a.hex||String(a.flight||'')+'|'+a.lat+'|'+a.lon;
@@ -841,7 +849,7 @@ const centers=map.getZoom()<=3.2?allCenters.slice(0,4):allCenters.slice(0,3);
     }
    }
   }
-  if(successful===0)throw Error('No receiver feeds responded');
+  if(successful===0)throw Error(errors[0]||'No receiver feeds responded');
   // Remove stale reports rather than showing old locations as if still live.
   aircraft=[...found.values()].filter(a=>Number.isFinite(a.lat)&&Number.isFinite(a.lon)&&Number.isFinite(Number(a.seen_pos))&&Number(a.seen_pos)<=75);
   lastLoadedAt=new Date();
