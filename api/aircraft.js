@@ -1,4 +1,17 @@
 export default async function handler(req,res){
+ // Lightweight, no-provider-call diagnostic: confirms the deployment received
+ // the secret without printing it or consuming an adsb.lol API request.
+ if(req.query.health==='1'){
+  res.setHeader('Cache-Control','no-store');
+  return res.status(200).json({
+   service:'AeroScope ONE aircraft API',
+   revision:'radar-auth-diagnostic-2026-11-14',
+   keyConfigured:Boolean(process.env.ADSB_LOL_API_KEY),
+   keyStoredOnServer:true,
+   dataEndpoint:'/api/aircraft?lat=18.4&lon=-69.7',
+   note:'This check does not contact the aircraft provider or validate the API key.'
+  });
+ }
  const lat=Number(req.query.lat),lon=Number(req.query.lon);
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return res.status(400).json({error:'Invalid coordinates'});
  const apiKey=process.env.ADSB_LOL_API_KEY||'';
@@ -6,7 +19,7 @@ export default async function handler(req,res){
   {name:'adsb.lol',url:`https://api.adsb.lol/v2/point/${lat.toFixed(1)}/${lon.toFixed(1)}/250`},
   {name:'adsb.one',url:`https://api.adsb.one/v2/point/${lat.toFixed(3)}/${lon.toFixed(3)}/250`}
  ];
- let last='';
+ const errors=[];
  for(const feed of endpoints){
   const ctrl=new AbortController();const timeout=setTimeout(()=>ctrl.abort(),6500);
   try{
@@ -33,9 +46,9 @@ export default async function handler(req,res){
     feedTier:apiKey?'configured-key':'limited-anonymous',
     coverage:'Receiver-dependent regional ADS-B/MLAT; not every aircraft is observable.'
    });
-  }catch(e){last=feed.name+' '+(e.name==='AbortError'?'timed out':e.message)}
+  }catch(e){errors.push(feed.name+' '+(e.name==='AbortError'?'timed out':e.message))}
   finally{clearTimeout(timeout)}
  }
  res.setHeader('Cache-Control','no-store');
- return res.status(503).json({error:'Aircraft feed temporarily unavailable',details:last});
+ return res.status(503).json({error:'Aircraft feed temporarily unavailable',details:errors.join(' | '),keyConfigured:Boolean(apiKey),revision:'radar-auth-diagnostic-2026-11-14'});
 }
