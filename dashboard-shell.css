@@ -1,0 +1,129 @@
+
+/* AeroScope ONE dashboard shell — preserves original radar and integrations */
+:root{--aero-bg:#06111f;--aero-side:#071727;--aero-surface:#0b1d31;--aero-card:#0c1e32;--aero-border:#27435e;--aero-blue:#49b9ff;--aero-text:#f0f8ff;--aero-muted:#9dbbd1}
+html{scroll-behavior:smooth}
+body{background:var(--aero-bg);color:var(--aero-text);overflow-x:hidden}
+#aero-shell{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100dvh}
+#aero-sidebar{background:linear-gradient(180deg,#071a2e 0%,#06111f 74%);border-right:1px solid #1d3851;padding:21px 13px 17px;display:flex;flex-direction:column;gap:20px;min-width:0;z-index:35}
+#aero-sidebar .brand{padding:1px 7px 12px;min-width:0}
+#aero-sidebar .aero-wordmark{font-size:23px}
+#aero-sidebar .aero-brand-caption{font-size:9px;letter-spacing:2px;color:#8aaec7;margin-top:9px;padding-left:8px;font-weight:750}
+.aero-sidebar-label{font-size:10px;text-transform:uppercase;letter-spacing:1.6px;color:#668cab;font-weight:800;padding:4px 14px 6px}
+.aero-menu{display:grid;gap:5px}
+.aero-side-link{width:100%;display:flex;align-items:center;gap:12px;text-align:left;background:none;border:1px solid transparent;padding:11px 13px;border-radius:11px;font-size:13px;font-weight:650;color:#c3d6e8;min-height:43px;transition:background .18s,border .18s}
+.aero-side-link svg{width:18px;height:18px;flex:none;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.aero-side-link:hover{background:#103150;border-color:#274e73}
+.aero-side-link.is-current{background:linear-gradient(110deg,#0d4e86,#0b3971);color:#fff;border:1px solid #2175bc;box-shadow:inset 3px 0 #58cbff}
+.aero-side-link:focus-visible,.aero-mobile-toggle:focus-visible{outline:2px solid #90deff;outline-offset:2px}
+.aero-side-divider{height:1px;background:#29415a;margin:5px 8px}
+.aero-side-bottom{margin-top:auto}
+.aero-premium-box{padding:16px;border:1px solid #285780;background:linear-gradient(160deg,#10395e,#0b2036);border-radius:14px}
+.aero-premium-box strong{display:block;color:#f4faff;font-size:15px}
+.aero-premium-box p{font-size:12px;line-height:1.5;color:#aac9de;margin:8px 0}
+.aero-premium-box a{color:#8fd9ff;font-size:12px;text-decoration:none;font-weight:750}
+#aero-workspace{min-width:0;display:flex;flex-direction:column}
+#aero-workspace>header{padding:17px 24px;min-height:82px;height:auto;border-bottom:1px solid #1e3a55;background:#081727;position:sticky;top:0;z-index:27;display:flex;gap:16px;align-items:center;justify-content:space-between}
+#aero-workspace>header .headright{margin-left:auto}
+#aero-workspace>header .headright small{display:none}
+#aero-workspace>header .headright .signin{background:#123a5d;border-color:#2e6893}
+.aero-top-title{display:grid;gap:4px}
+.aero-top-title h1{font-weight:800;font-size:clamp(21px,2vw,28px);letter-spacing:-.55px;line-height:1.1;margin:0}
+.aero-top-title p{font-size:11px;color:#91aec8;margin:0}
+.aero-live-pill{font-size:10px;font-weight:800;color:#78d4ff;border:1px solid #235e84;background:#12395a;padding:4px 9px;border-radius:18px;vertical-align:middle;letter-spacing:.55px}
+.aero-mobile-toggle{display:none;align-items:center;justify-content:center;min-width:39px;height:39px;border:1px solid #345d80;background:#102d48;color:#fff;border-radius:10px;font-size:20px}
+#aero-dashboard{padding:21px 22px 26px;min-width:0}
+.aero-overview-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.aero-overview-title h2{font-size:15px;letter-spacing:-.2px;margin:0}
+.aero-overview-title small{color:#7fc9ef;font-size:11px}
+#aero-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:15px}
+.aero-stat{background:linear-gradient(145deg,#0f2840,#0a1a2d);border:1px solid #294660;border-radius:14px;min-height:106px;padding:17px 15px;position:relative;overflow:hidden}
+.aero-stat .label{display:block;color:#aec9dc;font-size:11px;font-weight:700;margin-bottom:8px}
+.aero-stat .value{display:block;font-size:clamp(17px,2vw,27px);font-weight:800;letter-spacing:-.35px;line-height:1.16;overflow-wrap:anywhere}
+.aero-stat .note{display:block;font-size:10px;color:#85a9c2;margin-top:8px}
+.aero-stat .ico{position:absolute;right:13px;top:12px;font-size:22px;color:#46aefa;opacity:.6}
+.aero-controls-title{display:flex;align-items:center;gap:9px;margin:0 0 10px}
+.aero-controls-title h2{font-size:16px;margin:0}
+.aero-controls-title span{color:#90aeca;font-size:11px}
+#aero-native-nav{display:flex;gap:8px;flex-wrap:wrap;background:transparent;overflow:visible;padding:0;margin-bottom:11px;align-items:center}
+#aero-native-nav button{font-size:12px;border-radius:9px;padding:10px 13px;border:1px solid #2a506d;background:#0e2a42;color:#bcd9e9;font-weight:700}
+#aero-native-nav button.active{background:#15649e;border-color:#3da1e4;color:#fff}
+#aero-main-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(282px,32%);gap:13px;min-width:0;align-items:start}
+#aero-main-column{min-width:0}
+#aero-map-card,#aero-flight-card{background:#091b2d;border:1px solid #294761;border-radius:15px;min-width:0;overflow:hidden;box-shadow:0 12px 35px #0002}
+.aero-map-topline,.aero-flight-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px 11px;border-bottom:1px solid #233d54;background:#0a2036}
+.aero-map-topline h3,.aero-flight-topline h3{margin:0;color:#f3faff;font-size:14px}
+.aero-map-topline small,.aero-flight-topline small{font-size:10px;color:#89bedc}
+#aero-map-card #world-region-bar{background:#0b263f!important;padding:9px 12px!important;border-bottom:1px solid #27465f!important}
+#aero-map-card #world-region-select{min-width:180px}
+#aero-map-card #map{height:clamp(430px,61dvh,790px);min-height:430px;display:block;background:#071b30;margin:0!important;border-radius:0;overflow:hidden}
+#aero-map-card #toolbar{top:12px;left:12px;right:12px}
+#aero-map-card #search{background:#06192de8;backdrop-filter:blur(12px);box-shadow:0 5px 15px #0006;padding:12px 14px}
+#aero-map-card #refresh{background:#114976de;border-color:#3583b7;box-shadow:0 4px 14px #0006}
+#aero-map-card #status{padding:11px 13px;line-height:1.4;min-height:40px;background:#0c253a;color:#9ecde7;font-size:11px}
+#aero-flight-card{position:sticky;top:96px;max-height:calc(100dvh - 120px);display:flex;flex-direction:column}
+#aero-flight-card .aero-flight-topline{flex:none}
+#aero-flight-card #panel{position:relative!important;top:auto!important;right:auto!important;left:auto!important;bottom:auto!important;width:100%!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;box-shadow:none!important;overflow-y:auto!important;flex:1;min-height:235px;background:#091b2d!important;padding:15px!important;overscroll-behavior:contain}
+body.aircraft-selected #aero-map-card #map{margin:0!important}
+body.aircraft-selected #aero-flight-card #panel{position:relative!important}
+#aero-flight-card #panel>p{line-height:1.6;font-size:12px}
+#aero-flight-card .tracking-tools{align-items:flex-start}
+#aero-flight-card .aero-hero-gallery .aircraft-picture{max-height:210px}
+#aero-other{min-height:50px}
+#aero-main-column #other{background:#0a1e32;border:1px solid #294660;border-radius:15px;padding:18px;margin-top:0;min-height:450px}
+.aero-bottom-grid{display:grid;grid-template-columns:1.45fr 1fr 1fr;gap:13px;margin-top:14px}
+.aero-bottom-card{background:#0c2035;border:1px solid #294761;border-radius:14px;min-width:0;padding:15px;min-height:175px}
+.aero-bottom-card h3{margin:0 0 11px;font-size:14px}
+.aero-bottom-card p{font-size:12px;color:#a1c0d6;line-height:1.55;margin:7px 0}
+.aero-bottom-card a{font-size:12px;color:#8fdcff;text-decoration:none}
+.aero-bottom-card small{font-size:11px;color:#8db5ce}
+.aero-rows{display:grid;gap:1px}
+.aero-row{display:grid;grid-template-columns:minmax(85px,1fr) minmax(75px,1fr) minmax(70px,.8fr);gap:8px;align-items:center;border-radius:6px;width:100%;text-align:left;background:transparent;border:none;border-bottom:1px solid #1c3b56;padding:9px 3px;font-size:11px;color:#cbddea}
+.aero-row:not(.aero-row-header):hover{background:#15324b;cursor:pointer}
+.aero-row-header{font-size:10px;color:#86abc4;font-weight:750}
+.aero-row strong{color:#eef9ff;font-size:12px;overflow-wrap:anywhere}
+.aero-empty{font-size:12px;color:#95b8cf;line-height:1.55;padding:10px 0}
+.aero-coverdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e7a948;vertical-align:middle;margin-right:6px}
+.aero-coverdot.ok{background:#40c99c}
+#aero-workspace>footer{margin-top:auto;border-top:1px solid #1a3852!important;background:#071726!important}
+body.aero-nonradar #aero-map-card,body.aero-nonradar #aero-flight-card{display:none}
+body.aero-nonradar #aero-main-grid{display:block}
+body.aero-nonradar #aero-summary{opacity:.65}
+body.aero-nonradar #aero-main-column #other{display:block}
+body.aero-nonradar .aero-bottom-grid{display:none}
+@media(max-width:1160px){
+ #aero-shell{grid-template-columns:202px minmax(0,1fr)}
+ #aero-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #aero-main-grid{grid-template-columns:minmax(0,1fr) minmax(260px,34%)}
+ .aero-bottom-grid{grid-template-columns:1.25fr 1fr}
+ .aero-bottom-card:last-child{grid-column:1/-1}
+}
+@media(max-width:850px){
+ #aero-shell{grid-template-columns:1fr}
+ #aero-sidebar{position:fixed;left:0;top:0;bottom:0;width:246px;transform:translateX(-102%);transition:transform .2s ease;box-shadow:14px 0 30px #0008;overflow-y:auto}
+ body.aero-menu-open #aero-sidebar{transform:translateX(0)}
+ #aero-workspace>header{padding:12px 14px;min-height:67px}
+ .aero-mobile-toggle{display:inline-flex}
+ #aero-dashboard{padding:14px}
+ #aero-main-grid{grid-template-columns:1fr}
+ #aero-flight-card{position:static;max-height:none}
+ #aero-flight-card #panel{max-height:550px!important}
+ #aero-map-card #map{height:53dvh;min-height:390px}
+ .aero-bottom-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+ #aero-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .aero-stat{padding:12px;min-height:99px}
+ .aero-stat .value{font-size:19px}
+ .aero-stat .note{font-size:9px}
+ .aero-top-title h1{font-size:20px}
+ .aero-top-title p{display:none}
+ #aero-workspace>header .signin{padding:8px 10px;font-size:12px}
+ .aero-bottom-grid{grid-template-columns:1fr}
+ .aero-bottom-card:last-child{grid-column:auto}
+ #aero-native-nav{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+ #aero-native-nav button{white-space:nowrap;font-size:11px;padding:9px}
+ #aero-map-card #map{height:52dvh;min-height:365px}
+ #aero-map-card #toolbar{top:9px;left:8px;right:8px;gap:6px}
+ #aero-map-card #search{min-width:0;padding:11px;font-size:12px}
+ #aero-map-card #refresh{font-size:11px;padding:10px 8px}
+}
